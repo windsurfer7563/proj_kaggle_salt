@@ -84,7 +84,7 @@ def main():
             device_ids = list(map(int, args.device_ids.split(',')))
         else:
             device_ids = None
-        model = nn.DataParallel(model, device_ids=device_ids).cuda()
+        model = torch.nn.DataParallel(model, device_ids=device_ids).cuda()
 
     loss = LossBinary(jaccard_weight=args.jaccard_weight)
 
