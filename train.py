@@ -68,7 +68,7 @@ def main():
     elif args.model == 'UNet16':
         model = UNet16(num_classes=num_classes, pretrained='vgg')
     elif args.model == 'AlbuNet':
-        model = AlbuNet(num_classes=num_classes, pretrained=True, is_deconv = True)
+        model = AlbuNet(num_classes=num_classes, pretrained=True)
     else:
         model = UNet(num_classes=num_classes, input_channels=3)
 
@@ -79,12 +79,12 @@ def main():
         for param in model.encoder.parameters():
             param.requires_grad = True
 
-    #if torch.cuda.is_available():
-    #    if args.device_ids:
-    #        device_ids = list(map(int, args.device_ids.split(',')))
-    #    else:
-    #        device_ids = None
-    #    model = nn.DataParallel(model, device_ids=device_ids).cuda()
+    if torch.cuda.is_available():
+        if args.device_ids:
+            device_ids = list(map(int, args.device_ids.split(',')))
+        else:
+            device_ids = None
+        model = nn.DataParallel(model, device_ids=device_ids).cuda()
 
     loss = LossBinary(jaccard_weight=args.jaccard_weight)
 

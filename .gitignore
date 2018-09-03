@@ -104,6 +104,7 @@ ENV/
 input/
 data/
 CCM/
+runs/
 
 *.csv
 *.wpr
