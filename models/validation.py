@@ -1,6 +1,8 @@
 import numpy as np
+import torch
 from torch import nn
 
+device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
 def validation_binary(model: nn.Module, criterion, valid_loader, num_classes=None):
     model.eval()
@@ -9,16 +11,18 @@ def validation_binary(model: nn.Module, criterion, valid_loader, num_classes=Non
     jaccard = []
 
     for inputs, targets in valid_loader:
-        inputs = utils.variable(inputs, volatile=True)
-        targets = utils.variable(targets)
+        inputs, targets = inputs.to(device), targets.to(device)
+        #inputs = utils.variable(inputs, volatile=True)
+        #targets = utils.variable(targets)
         outputs = model(inputs)
         loss = criterion(outputs, targets)
-        losses.append(loss.data[0])
-        jaccard += [get_jaccard(targets, (outputs > 0).float()).data[0]]
+        losses.append(loss.item())
+        #jaccard += [get_jaccard(targets, (outputs > 0).float()).item()]
+        jaccard += [get_jaccard(targets, (torch.sigmoid(outputs) > 0.5).float()).item()]
 
-    valid_loss = np.mean(losses)  # type: float
+    valid_loss = np.mean(losses).astype(float)  # type: float
 
-    valid_jaccard = np.mean(jaccard)
+    valid_jaccard = np.mean(jaccard).astype(float)
 
     print('Valid loss: {:.5f}, jaccard: {:.5f}'.format(valid_loss, valid_jaccard))
     metrics = {'valid_loss': valid_loss, 'jaccard_loss': valid_jaccard}
