@@ -33,15 +33,24 @@ class SaltDataset(Dataset):
             mask = (mask > 0).astype(float)
         elif self.mode == 'predict':
             img_path = os.path.join(train_image_dir, 'images', img_file_name)
+            mask = None
         else: #predict for test images
             img_path = os.path.join(test_image_dir, 'images', img_file_name)
+            mask = None
 
         img = imread(img_path)
 
+
         if self.transform is not None:
             img, mask = self.transform(img, mask)
+
+
 
         if self.mode == 'train':
             return self.img_transform(img), torch.from_numpy(np.expand_dims(mask, axis=0)).float()
         else:
             return self.img_transform(img), str(img_file_name)
+
+    def get_by_name(self, file_name):
+        idx = self.image_ids.index(file_name)
+        return self[idx]
