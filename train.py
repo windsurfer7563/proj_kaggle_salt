@@ -16,16 +16,23 @@ from models.utils import train
 
 from models.prepare_train_val import get_split
 
-from models.transforms import (DualCompose,
-                        ImageOnly,
-                        Normalize,
-                        HorizontalFlip,
-                        VerticalFlip,
-                        Rotate,
-                        RandomBrightness,
-                        RandomContrast,
-                        AddMargin
-                       )
+#from models.transforms import (DualCompose,
+#                        ImageOnly,
+#                        Normalize,
+#                        HorizontalFlip,
+#                        VerticalFlip,
+#                        Rotate,
+#                        RandomBrightness,
+#                        RandomContrast,
+#                        AddMargin
+#                       )
+
+from albumentations import (HorizontalFlip, VerticalFlip, Normalize,
+    ShiftScaleRotate, Blur, OpticalDistortion,  GridDistortion, HueSaturationValue, IAAAdditiveGaussianNoise, GaussNoise, MotionBlur,
+    MedianBlur, IAAPiecewiseAffine, IAASharpen, IAAEmboss, RandomContrast, RandomBrightness,
+    Flip, OneOf, Compose, PadIfNeeded, CLAHE
+)
+
 
 
 def make_loader(file_names, args, shuffle=False, transform=None):
@@ -42,6 +49,8 @@ def main():
     parser = argparse.ArgumentParser()
     arg = parser.add_argument
     arg('--jaccard-weight', default=1, type=float)
+    arg('--train_crop_height', type=int, default=128)
+    arg('--train_crop_width', type=int, default=128)
     arg('--device-ids', type=str, default='0', help='For example 0,1 to run on two GPUs')
     arg('--fold', type=int, help='fold', default=0)
     arg('--root', default='runs/debug', help='checkpoint root')
@@ -100,6 +109,7 @@ def main():
 
     print('num train = {}, num_val = {}'.format(len(train_file_names), len(val_file_names)))
 
+    """
     train_transform = DualCompose([
         AddMargin(128),
         HorizontalFlip(),
@@ -113,9 +123,49 @@ def main():
         AddMargin(128),
         ImageOnly(Normalize())
     ])
+    """
 
-    train_loader = make_loader(train_file_names, args, shuffle=True, transform=train_transform)
-    valid_loader = make_loader(val_file_names, args, transform=val_transform)
+    def train_transform(p=1):
+        return Compose([
+            PadIfNeeded(min_height=args.train_crop_height, min_width=args.train_crop_width, border_mode = 0,  p=1),
+            HorizontalFlip(p=0.5),
+            OneOf([
+                IAAAdditiveGaussianNoise(),
+                GaussNoise(),
+            ], p=0.2),
+            OneOf([
+                MotionBlur(p=0.2),
+                MedianBlur(blur_limit=3, p=0.1),
+                Blur(blur_limit=3, p=0.1),
+            ], p=0.2),
+            ShiftScaleRotate(shift_limit=0, scale_limit=0.2, rotate_limit=30, p=0.2),
+            OneOf([
+                OpticalDistortion(p=0.3),
+                GridDistortion(p=0.1),
+                IAAPiecewiseAffine(p=0.3),
+            ], p=0.2),
+            OneOf([
+                CLAHE(clip_limit=2),
+                IAASharpen(),
+                IAAEmboss(),
+                RandomContrast(),
+                RandomBrightness(),
+            ], p=0.3),
+            Normalize(mean=(0, 0, 0), std=(1, 1, 1), p=1)
+        ], p=p)
+
+    def val_transform(p=1):
+        return Compose([
+            PadIfNeeded(min_height=args.train_crop_height, min_width=args.train_crop_width, border_mode = 0, p=1),
+            Normalize(mean=(0, 0, 0), std=(1, 1, 1), p=1)
+        ], p=p)
+
+
+
+
+
+    train_loader = make_loader(train_file_names, args, shuffle=True, transform=train_transform(p=1))
+    valid_loader = make_loader(val_file_names, args, transform=val_transform(p=1))
 
     root.joinpath('params.json').write_text(
         json.dumps(vars(args), indent=True, sort_keys=True))

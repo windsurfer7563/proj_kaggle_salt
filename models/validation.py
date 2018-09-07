@@ -10,22 +10,25 @@ def validation_binary(model: nn.Module, criterion, valid_loader, num_classes=Non
 
     jaccard = []
 
+    iou = []
+
     for inputs, targets in valid_loader:
         inputs, targets = inputs.to(device), targets.to(device)
-        #inputs = utils.variable(inputs, volatile=True)
-        #targets = utils.variable(targets)
         outputs = model(inputs)
         loss = criterion(outputs, targets)
         losses.append(loss.item())
-        #jaccard += [get_jaccard(targets, (outputs > 0).float()).item()]
         jaccard += [get_jaccard(targets, (torch.sigmoid(outputs) > 0.5).float()).item()]
+        iou += [get_iou((torch.sigmoid(outputs) > 0.5)).data.cpu().numpy().astype(np.uint8)]
+
 
     valid_loss = np.mean(losses).astype(float)  # type: float
 
     valid_jaccard = np.mean(jaccard).astype(float)
 
-    print('Valid loss: {:.5f}, jaccard: {:.5f}'.format(valid_loss, valid_jaccard))
-    metrics = {'valid_loss': valid_loss, 'jaccard_loss': valid_jaccard}
+    valid_iou = np.mean(iou).astype(float)
+
+    print('Valid loss: {:.5f}, jaccard: {:.5f}, mean iou: {:.5f}'.format(valid_loss, valid_jaccard, valid_iou))
+    metrics = {'valid_loss': valid_loss, 'jaccard': valid_jaccard, 'mean_iou': valid_iou}
     return metrics
 
 
@@ -37,55 +40,31 @@ def get_jaccard(y_true, y_pred):
     return (intersection / (union - intersection + epsilon)).mean()
 
 
-def validation_multi(model: nn.Module, criterion, valid_loader, num_classes):
-    model.eval()
-    losses = []
-    confusion_matrix = np.zeros(
-        (num_classes, num_classes), dtype=np.uint32)
-    for inputs, targets in valid_loader:
-        inputs = utils.variable(inputs, volatile=True)
-        targets = utils.variable(targets)
-        outputs = model(inputs)
-        loss = criterion(outputs, targets)
-        losses.append(loss.data[0])
-        output_classes = outputs.data.cpu().numpy().argmax(axis=1)
-        target_classes = targets.data.cpu().numpy()
-        confusion_matrix += calculate_confusion_matrix_from_arrays(
-            output_classes, target_classes, num_classes)
+def get_iou(A, B):
+    batch_size = A.shape[0]
+    metric = []
+    for batch in range(batch_size):
+        t, p = A[batch], B[batch]
+        if np.count_nonzero(t) == 0 and np.count_nonzero(p) > 0:
+            metric.append(0)
+            continue
+        if np.count_nonzero(t) >= 1 and np.count_nonzero(p) == 0:
+            metric.append(0)
+            continue
+        if np.count_nonzero(t) == 0 and np.count_nonzero(p) == 0:
+            metric.append(1)
+            continue
 
-    confusion_matrix = confusion_matrix[1:, 1:]  # exclude background
-    valid_loss = np.mean(losses)  # type: float
-    ious = {'iou_{}'.format(cls + 1): iou
-            for cls, iou in enumerate(calculate_iou(confusion_matrix))}
+        intersection = np.logical_and(t, p)
+        union = np.logical_or(t, p)
+        iou = np.sum(intersection > 0) / np.sum(union > 0)
+        thresholds = np.arange(0.5, 1, 0.05)
+        s = []
+        for thresh in thresholds:
+            s.append(iou > thresh)
+        metric.append(np.mean(s))
 
-    dices = {'dice_{}'.format(cls + 1): dice
-             for cls, dice in enumerate(calculate_dice(confusion_matrix))}
-
-    average_iou = np.mean(list(ious.values()))
-    average_dices = np.mean(list(dices.values()))
-
-    print(
-        'Valid loss: {:.4f}, average IoU: {:.4f}, average Dice: {:.4f}'.format(valid_loss, average_iou, average_dices))
-    metrics = {'valid_loss': valid_loss, 'iou': average_iou}
-    metrics.update(ious)
-    metrics.update(dices)
-    return metrics
-
-
-def calculate_confusion_matrix_from_arrays(prediction, ground_truth, nr_labels):
-    replace_indices = np.vstack((
-        ground_truth.flatten(),
-        prediction.flatten())
-    ).T
-    confusion_matrix, _ = np.histogramdd(
-        replace_indices,
-        bins=(nr_labels, nr_labels),
-        range=[(0, nr_labels), (0, nr_labels)]
-    )
-    confusion_matrix = confusion_matrix.astype(np.uint32)
-    return confusion_matrix
-
-
+"""
 def calculate_iou(confusion_matrix):
     ious = []
     for index in range(confusion_matrix.shape[0]):
@@ -114,3 +93,4 @@ def calculate_dice(confusion_matrix):
             dice = 2 * float(true_positives) / denom
         dices.append(dice)
     return dices
+"""

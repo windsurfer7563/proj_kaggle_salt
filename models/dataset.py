@@ -25,6 +25,7 @@ class SaltDataset(Dataset):
         return len(self.image_ids)
 
     def __getitem__(self, idx):
+        # TODO Zero out masks with less then 20 pixels in mask from training dataset
         img_file_name = self.image_ids[idx] + '.png'
         if self.mode == 'train':
             img_path = os.path.join(train_image_dir,'images', img_file_name)
@@ -42,7 +43,15 @@ class SaltDataset(Dataset):
 
 
         if self.transform is not None:
-            img, mask = self.transform(img, mask)
+            if mask is not None:
+                data = {"image": img, "mask": mask}
+                augmented = self.transform(**data)
+                img, mask = augmented["image"], augmented["mask"]
+            else:
+                data = {"image": img}
+                augmented = self.transform(**data)
+                img = augmented["image"]
+
 
 
 

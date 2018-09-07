@@ -154,9 +154,10 @@ class AddMargin:
         left = (self.size - width) // 2
         right = self.size - width - left
 
-        img = cv2.copyMakeBorder(img, top, bottom, left, right, borderType=cv2.BORDER_CONSTANT, value=0)
+        #img = cv2.copyMakeBorder(img, top, bottom, left, right, borderType=cv2.BORDER_CONSTANT, value=0)
+        img = cv2.copyMakeBorder(img, top, bottom, left, right, borderType=cv2.BORDER_REFLECT_101, value=0)
         if mask is not None:
-            mask = cv2.copyMakeBorder(mask, top, bottom, left, right, borderType=cv2.BORDER_CONSTANT, value=0)
+            mask = cv2.copyMakeBorder(mask, top, bottom, left, right, borderType=cv2.BORDER_REFLECT_101, value=0)
 
         return img, mask
 
@@ -366,9 +367,9 @@ class Distort1:
             map_x = r * np.cos(theta) + width / 2 + dx
             map_y = r * np.sin(theta) + height / 2 + dy
 
-            img = cv2.remap(img, map_x, map_y, interpolation=cv2.INTER_LINEAR, borderMode=cv2.BORDER_REFLECT_101)
+            img = cv2.remap(img, map_x, map_y, interpolation=cv2.INTER_LINEAR, borderMode=cv2.BORDER_REFLECT101)
             if mask is not None:
-                mask = cv2.remap(mask, map_x, map_y, interpolation=cv2.INTER_NEAREST, borderMode=cv2.BORDER_REFLECT_101)
+                mask = cv2.remap(mask, map_x, map_y, interpolation=cv2.INTER_NEAREST, borderMode=cv2.BORDER_REFLECT101)
         return img, mask
 
 

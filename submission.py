@@ -4,6 +4,8 @@ from skimage.io import imread
 from skimage import img_as_float
 import numpy as np
 from tqdm import tqdm
+import pandas as pd
+
 
 def rle_encode(im):
     '''
@@ -21,15 +23,18 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     arg = parser.add_argument
 
-    arg('--predictions_path', type=str, default='data/predictions/test',
+    arg('--predictions_path', type=str, default='data/predictions/AlbuNet/test',
         help='path where predicted images are located')
 
     args = parser.parse_args()
 
     pred_dict = {}
     for file_name in tqdm((Path(args.predictions_path).glob('*'))):
-        y_pred = (img_as_float(imread(str(file_name))) > 0.4).astype(np.uint8)
-        pred_dict[str(file_name)[0:-4]] = rle_encode(y_pred)
+        y_pred = (img_as_float(imread(str(file_name))) > 0.46).astype(np.uint8)
+
+        if y_pred.sum() < 35:
+            y_pred[:,:] = 0
+        pred_dict[str(file_name.name)[0:-4]] = rle_encode(y_pred)
 
     sub = pd.DataFrame.from_dict(pred_dict, orient='index')
     sub.index.names = ['id']

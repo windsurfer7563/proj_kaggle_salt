@@ -131,14 +131,13 @@ class DecoderBlockV2(nn.Module):
     def forward(self, x):
         return self.block(x)
 
-
 class AlbuNet(nn.Module):
     """
         UNet (https://arxiv.org/abs/1505.04597) with Resnet34(https://arxiv.org/abs/1512.03385) encoder
         Proposed by Alexander Buslaev: https://www.linkedin.com/in/al-buslaev/
         """
 
-    def __init__(self, num_classes=1, num_filters=32, pretrained=True, is_deconv=False):
+    def __init__(self, num_classes=1, num_filters=32, pretrained=True, is_deconv = True):
         """
         :param num_classes:
         :param num_filters:

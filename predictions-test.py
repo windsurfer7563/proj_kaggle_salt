@@ -14,19 +14,17 @@ import numpy as np
 
 from torch.utils.data import DataLoader
 
-from models.transforms import (ImageOnly,
-                        AddMargin,
-                        Normalize,
-                        DualCompose)
+from albumentations import  Compose, PadIfNeeded, Normalize, CenterCrop
 
 import warnings
 warnings.simplefilter("ignore", UserWarning)
 
 
-img_transform = DualCompose([
-    AddMargin(128),
-    ImageOnly(Normalize())
-])
+def img_transform(p=1):
+    return Compose([
+        PadIfNeeded(min_height=128, min_width=128, border_mode=0, p=1),
+        Normalize(mean=(0, 0, 0), std=(1, 1, 1), p=1)
+    ], p=p)
 
 original_height, original_width = 101, 101
 
@@ -57,6 +55,7 @@ def get_models(models_path, model_type='AlbuNet'):
         elif model_type == 'UNet':
             model = UNet(num_classes=num_classes)
 
+
         if torch.cuda.is_available():
             state = torch.load(str(model_path))
         else:
@@ -65,7 +64,7 @@ def get_models(models_path, model_type='AlbuNet'):
         model.load_state_dict(state)
 
         if torch.cuda.is_available():
-            return model.cuda()
+            model.cuda()
 
         model.eval()
 
@@ -75,17 +74,18 @@ def get_models(models_path, model_type='AlbuNet'):
 
 
 def predict(models, from_file_names, batch_size: int, to_path):
-
+    # TODO Zero out masks with less then 30 pixels in mask
     loader = DataLoader(
-        dataset=SaltDataset(from_file_names, transform=img_transform, mode='test'),
+        dataset=SaltDataset(from_file_names, transform=img_transform(p=1), mode='test'),
         shuffle=False,
         batch_size=batch_size,
         num_workers=args.workers,
         pin_memory=torch.cuda.is_available()
     )
     print("Start predictions....")
+    print(len(models))
     with torch.no_grad():
-        for batch_num, (inputs, paths) in enumerate(tqdm(loader, desc='Predict')):
+        for batch_num, (inputs, paths) in enumerate(tqdm(loader, desc='Predict', ascii=True)):
 
             outputs_arr = []
             inputs = inputs.to(device)
@@ -101,21 +101,18 @@ def predict(models, from_file_names, batch_size: int, to_path):
 
                 t_mask = outputs_arr[i, 0]
 
-                #old - slow version
-                #t_mask = np.zeros(outputs_arr[0].shape[2:])
-                #for output in outputs_arr:
-                #    factor = 1.0
-                #    t_mask +=(torch.sigmoid(output[i, 0]).data.cpu().numpy() * factor).astype(float)
-                #t_mask = t_mask / len(outputs_arr)
 
-                h, w = t_mask.shape
+                #h, w = t_mask.shape
+                #top = (h - original_height) // 2
+                #bottom = top + original_height
+                #left = (w - original_width) // 2
+                #right = left + original_width
+                #full_mask = t_mask[top:bottom, left:right]
 
-                top = (h - original_height) // 2
-                bottom = top + original_height
-                left = (w - original_width) // 2
-                right = left + original_width
+                aug = CenterCrop(101, 101)
+                augmented = aug(image=t_mask)
+                full_mask = augmented["image"]
 
-                full_mask = t_mask[top:bottom, left:right]
                 full_mask = img_as_float(full_mask)
 
                 out_folder = Path(paths[i]).parent.parent.name
@@ -130,7 +127,7 @@ if __name__ == '__main__':
     arg('--model_path', type=str, default='data/models/', help='path to model folder')
     arg('--model_type', type=str, default='AlbuNet', help='network architecture',
         choices=['AlbuNet','UNet', 'UNet11', 'UNet16', 'LinkNet34'])
-    arg('--output_path', type=str, help='path to save images', default='data/predictions/test')
+    arg('--output_path', type=str, help='path to save images', default='data/predictions/')
     arg('--batch-size', type=int, default=64)
     arg('--problem_type', type=str, default='binary', choices=['binary', 'parts', 'instruments'])
     arg('--workers', type=int, default=6)
@@ -146,7 +143,7 @@ if __name__ == '__main__':
 
     print('num file_names = {}'.format(len(file_names)))
 
-    output_path = Path(args.output_path)
+    output_path = Path(args.output_path) / args.model_type / 'test'
     output_path.mkdir(exist_ok=True, parents=True)
 
     predict(models, file_names, args.batch_size, output_path)

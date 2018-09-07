@@ -5,40 +5,7 @@ from skimage import img_as_float
 import numpy as np
 from tqdm import tqdm
 
-"""
-def general_dice(y_true, y_pred):
-    result = []
 
-    if y_true.sum() == 0:
-        if y_pred.sum() == 0:
-            return 1
-        else:
-            return 0
-
-    for instrument_id in set(y_true.flatten()):
-        if instrument_id == 0:
-            continue
-        result += [dice(y_true == instrument_id, y_pred == instrument_id)]
-
-    return np.mean(result)
-
-
-def general_jaccard(y_true, y_pred):
-    result = []
-
-    if y_true.sum() == 0:
-        if y_pred.sum() == 0:
-            return 1
-        else:
-            return 0
-
-    for instrument_id in set(y_true.flatten()):
-        if instrument_id == 0:
-            continue
-        result += [jaccard(y_true == instrument_id, y_pred == instrument_id)]
-
-    return np.mean(result)
-"""
 def jaccard(y_true, y_pred):
     intersection = (y_true * y_pred).sum()
     union = y_true.sum() + y_pred.sum() - intersection
@@ -82,13 +49,89 @@ def get_iou_vector(A, B):
             s.append(iou > thresh)
         metric.append(np.mean(s))
 
+    return np.mean(metric), np.std(metric)
+
+
+def iou_metric(y_true_in, y_pred_in, print_table=False):
+    labels = y_true_in
+    y_pred = y_pred_in
+
+    true_objects = 2
+    pred_objects = 2
+
+    # Jiaxin fin that if all zeros, then, the background is treated as object
+    temp1 = np.histogram2d(labels.flatten(), y_pred.flatten(), bins=([0, 0.5, 1], [0, 0.5, 1]))
+    #     temp1 = np.histogram2d(labels.flatten(), y_pred.flatten(), bins=(true_objects, pred_objects))
+    # print(temp1)
+    intersection = temp1[0]
+    # print("temp2 = ",temp1[1])
+    # print(intersection.shape)
+    # print(intersection)
+    # Compute areas (needed for finding the union between all objects)
+    # print(np.histogram(labels, bins = true_objects))
+    area_true = np.histogram(labels, bins=[0, 0.5, 1])[0]
+    # print("area_true = ",area_true)
+    area_pred = np.histogram(y_pred, bins=[0, 0.5, 1])[0]
+    area_true = np.expand_dims(area_true, -1)
+    area_pred = np.expand_dims(area_pred, 0)
+
+    # Compute union
+    union = area_true + area_pred - intersection
+
+    # Exclude background from the analysis
+    intersection = intersection[1:, 1:]
+    intersection[intersection == 0] = 1e-9
+
+    union = union[1:, 1:]
+    union[union == 0] = 1e-9
+
+    # Compute the intersection over union
+    iou = intersection / union
+
+    # Precision helper function
+    def precision_at(threshold, iou):
+        matches = iou > threshold
+        true_positives = np.sum(matches, axis=1) == 1  # Correct objects
+        false_positives = np.sum(matches, axis=0) == 0  # Missed objects
+        false_negatives = np.sum(matches, axis=1) == 0  # Extra objects
+        tp, fp, fn = np.sum(true_positives), np.sum(false_positives), np.sum(false_negatives)
+        return tp, fp, fn
+
+    # Loop over IoU thresholds
+    prec = []
+    if print_table:
+        print("Thresh\tTP\tFP\tFN\tPrec.")
+    for t in np.arange(0.5, 1.0, 0.05):
+        tp, fp, fn = precision_at(t, iou)
+        if (tp + fp + fn) > 0:
+            p = tp / (tp + fp + fn)
+        else:
+            p = 0
+        if print_table:
+            print("{:1.3f}\t{}\t{}\t{}\t{:1.3f}".format(t, tp, fp, fn, p))
+        prec.append(p)
+
+    if print_table:
+        print("AP\t-\t-\t-\t{:1.3f}".format(np.mean(prec)))
+    return np.mean(prec)
+
+
+def iou_metric_batch(y_true_in, y_pred_in):
+    #y_pred_in = y_pred_in > 0.5  # added by sgx 20180728
+    batch_size = y_true_in.shape[0]
+    metric = []
+    for batch in range(batch_size):
+        value = iou_metric(y_true_in[batch], y_pred_in[batch])
+        metric.append(value)
+    # print("metric = ",metric)
     return np.mean(metric)
+
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     arg = parser.add_argument
 
-    arg('--predictions_path', type=str, default='data/predictions/AlbuNet',
+    arg('--predictions_path', type=str, default='data/predictions/AlbuNet/OOF',
         help='path where predicted images are located')
     arg('--target_path', type=str, default='data/train/masks/', help='path with gt masks')
     #arg('--problem_type', type=str, default='parts', choices=['binary', 'parts', 'instruments'])
@@ -99,23 +142,44 @@ if __name__ == '__main__':
     pred_batch = []
     gt_batch = []
 
+    for file_name in tqdm(Path(args.predictions_path).glob('*'), ascii=True):
 
-    for file_name in tqdm((Path(args.predictions_path).glob('*'))):
-        y_pred = (img_as_float(imread(str(file_name))) > 0.4).astype(np.uint8)
+        # y_pred = (img_as_float(imread(str(file_name))) > 0.5).astype(np.uint8)
+
+        y_pred = img_as_float(imread(str(file_name)))
 
         gt_file_name = Path(args.target_path) / file_name.name
         y_true = (imread(gt_file_name) > 0).astype(np.uint8)
         pred_batch.append(y_pred)
         gt_batch.append(y_true)
 
-        result_dice += [dice(y_true, y_pred)]
-        result_jaccard += [jaccard(y_true, y_pred)]
+        result_dice += [dice(y_true, (y_pred>0.5).astype(np.uint8))]
+        result_jaccard += [jaccard(y_true, (y_pred>0.5).astype(np.uint8))]
 
 
 
     print('Dice = ', np.mean(result_dice), np.std(result_dice))
     print('Jaccard = ', np.mean(result_jaccard), np.std(result_jaccard))
+
     pred_batch =  np.stack(pred_batch, axis=0)
     gt_batch = np.stack(gt_batch, axis=0)
 
-    print('AP = ', get_iou_vector(gt_batch, pred_batch))
+    threshold = 0.5
+    m,s = get_iou_vector(gt_batch, (pred_batch>threshold).astype(np.uint8))
+    print('AP = {}, std = {}'.format(m,s))
+    print('AP2 = {}'.format(iou_metric_batch(gt_batch, (pred_batch > threshold).astype(np.uint8))))
+
+
+    #thresholds = np.linspace(0.3, 0.7, 31)
+    #ious = np.array(
+    #    [get_iou_vector(gt_batch, (pred_batch>threshold).astype(np.uint8)) for threshold in tqdm(thresholds, ascii=True)])
+
+    #threshold_best_index = np.argmax(ious[:,0])
+    #iou_best = ious[threshold_best_index]
+    #threshold_best = thresholds[threshold_best_index]
+
+    #print("Best IOU: {} at {}".format(iou_best, threshold_best))
+
+
+
+    #print('AP2 = {}'.format(iou_metric_batch(gt_batch, (pred_batch>treshold).astype(np.uint8))))

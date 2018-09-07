@@ -5,6 +5,7 @@ import os
 
 
 def get_split(fold):
+
     train_path = os.path.join(data_path, 'train','images')
     ids = next(os.walk(train_path))[2]
 
