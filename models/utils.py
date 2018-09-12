@@ -7,6 +7,21 @@ import numpy as np
 
 import torch
 import tqdm
+from torch import optim
+
+optimizers = {
+    'adam': optim.Adam,
+    'rmsprop': optim.RMSprop,
+    'sgd': optim.SGD
+}
+optimizer_parameters = {
+    'adam': {},
+    'sgd':{'momentum':0.9, 'weight_decay': 0.0001},
+    'rmsprop': {}
+}
+
+
+from torch.optim.lr_scheduler import ExponentialLR, MultiStepLR, ReduceLROnPlateau, LambdaLR
 
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
@@ -27,8 +42,14 @@ def write_event(log, step: int, **data):
     log.write('\n')
     log.flush()
 
+def get_learning_rate(optimizer):
+    lr=[]
+    for param_group in optimizer.param_groups:
+       lr +=[ param_group['lr'] ]
+    return lr
 
-def train(args, model, criterion, train_loader, valid_loader, validation, init_optimizer, n_epochs=None, fold=None, num_classes=None):
+
+def train(args, model,config, criterion, train_loader, valid_loader, validation, n_epochs=None, fold=None, num_classes=None):
     SEED = 47
     torch.manual_seed(SEED)
     if torch.cuda.is_available():
@@ -36,13 +57,19 @@ def train(args, model, criterion, train_loader, valid_loader, validation, init_o
         torch.cuda.manual_seed_all(SEED)
 
     np.random.seed(SEED)
+    random.seed(SEED)
 
     torch.backends.cudnn.deterministic = True
 
-
-    lr = args.lr
     n_epochs = n_epochs or args.n_epochs
-    optimizer = init_optimizer(lr)
+
+    init_optimizer = lambda lr: optimizers[config['optimizer']](filter(lambda p: p.requires_grad, model.parameters()), lr=lr,
+                                                             **optimizer_parameters[config['optimizer']])
+    optimizer = init_optimizer(config['initial_lr'])
+
+    #lr_scheduler = ExponentialLR(optimizer, config['lr_gamma'])
+    lr_scheduler = MultiStepLR(optimizer, milestones=config['lr_steps'], gamma=0.1)
+    #lr_scheduler = ReduceLROnPlateau(optimizer, factor = 0.5, patience=6, verbose = True, mode='max')
 
     root = Path(args.root)
     model_path = root / 'model_{fold}.pt'.format(fold=fold)
@@ -51,9 +78,8 @@ def train(args, model, criterion, train_loader, valid_loader, validation, init_o
         state = torch.load(str(model_path))
         epoch = state['epoch']
         step = state['step']
-        optimizer = state['optimizer']
         model.load_state_dict(state['model'])
-        optimizer.load_state_dict(state['optimizer'])
+        lr_scheduler.load_state_dict(state['lr_scheduler'])
         print('Restored model, epoch {}, step {:,}'.format(epoch, step))
     else:
         epoch = 1
@@ -63,7 +89,7 @@ def train(args, model, criterion, train_loader, valid_loader, validation, init_o
         'model': model.state_dict(),
         'epoch': ep,
         'step': step,
-        'optimizer': optimizer.state_dict(),
+        'lr_scheduler': lr_scheduler.state_dict(),
     }, str(model_path))
 
     save_best_model = lambda ep: torch.save({
@@ -79,12 +105,14 @@ def train(args, model, criterion, train_loader, valid_loader, validation, init_o
     valid_losses = []
     best_iou = 0.77
     for epoch in range(epoch, n_epochs + 1):
-        # TODO code for best model(based on validation score) savings
+        lr_scheduler.step()
         model.train()
-        random.seed()
 
-        tq = tqdm.tqdm(total=(len(train_loader) * args.batch_size), ascii=True)
-        tq.set_description('Epoch {}, lr {}'.format(epoch, lr))
+        #random.seed()
+
+        tq = tqdm.tqdm(total=(len(train_loader) * config['batch_size']), ascii=True)
+        #tq.set_description('Epoch {}, lr {}'.format(epoch, lr_scheduler.get_lr()))
+        tq.set_description('Epoch {}, lr {}'.format(epoch, get_learning_rate(optimizer)[0]))
         losses = []
         tl = train_loader
         try:
@@ -112,8 +140,14 @@ def train(args, model, criterion, train_loader, valid_loader, validation, init_o
             write_event(log, step, **valid_metrics)
             valid_loss = valid_metrics['valid_loss']
             valid_losses.append(valid_loss)
-            if valid_metrics['mean iou'] > best_iou:
+
+            #if epoch > config['warmup']:
+            #    lr_scheduler.step()
+
+            #lr_scheduler.step(valid_metrics['mean_iou'])
+            if valid_metrics['mean_iou'] > best_iou:
                 save_best_model(epoch + 1)
+                best_iou = valid_metrics['mean_iou']
         except KeyboardInterrupt:
             tq.close()
             print('Ctrl+C, saving snapshot')

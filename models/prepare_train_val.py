@@ -18,7 +18,7 @@ def get_split(fold):
 
     X = range(0,len(ids))
     #skf = StratifiedKFold(n_splits=5)
-    kf = KFold(n_splits=5, shuffle=True, random_state=47)
+    kf = KFold(n_splits=5, shuffle=False, random_state=47)
 
     #train_index, test_index  = list(skf.split(X, y))[fold]
     train_index, test_index  = list(kf.split(X))[fold]

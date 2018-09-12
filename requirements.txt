@@ -1,1 +1,7 @@
 torch
+scikit-image
+sklearn
+albumentations
+opencv-python
+pandas
+tqdm

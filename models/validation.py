@@ -13,12 +13,12 @@ def validation_binary(model: nn.Module, criterion, valid_loader, num_classes=Non
     iou = []
 
     for inputs, targets in valid_loader:
-        inputs, targets = inputs.to(device), targets.to(device)
-        outputs = model(inputs)
+        targets = targets.to(device)
+        outputs = model(inputs.to(device))
         loss = criterion(outputs, targets)
         losses.append(loss.item())
-        jaccard += [get_jaccard(targets, (torch.sigmoid(outputs) > 0.5).float()).item()]
-        iou += [get_iou((torch.sigmoid(outputs) > 0.5)).data.cpu().numpy().astype(np.uint8)]
+        jaccard += [get_jaccard(targets, (torch.sigmoid(outputs) > 0.45).float()).item()]
+        iou += [get_iou(targets.to(torch.uint8), (torch.sigmoid(outputs) > 0.45).to(torch.uint8))]
 
 
     valid_loss = np.mean(losses).astype(float)  # type: float
@@ -39,45 +39,22 @@ def get_jaccard(y_true, y_pred):
 
     return (intersection / (union - intersection + epsilon)).mean()
 
+def get_iou(labels: torch.Tensor, outputs: torch.Tensor):
+        SMOOTH = 1e-6
+        # You can comment out this line if you are passing tensors of equal shape
+        # But if you are passing output from UNet or something it will most probably
+        # be with the BATCH x 1 x H x W shape
+        outputs = outputs.squeeze(1)  # BATCH x 1 x H x W => BATCH x H x W
+        labels = labels.squeeze(1)
+        intersection = (outputs & labels).sum((1, 2)).float()  # Will be zero if Truth=0 or Prediction=0
+        union = (outputs | labels).sum((1, 2)).float()  # Will be zzero if both are 0
 
-def get_iou(A, B):
-    batch_size = A.shape[0]
-    metric = []
-    for batch in range(batch_size):
-        t, p = A[batch], B[batch]
-        if np.count_nonzero(t) == 0 and np.count_nonzero(p) > 0:
-            metric.append(0)
-            continue
-        if np.count_nonzero(t) >= 1 and np.count_nonzero(p) == 0:
-            metric.append(0)
-            continue
-        if np.count_nonzero(t) == 0 and np.count_nonzero(p) == 0:
-            metric.append(1)
-            continue
+        iou = (intersection + SMOOTH) / (union + SMOOTH)  # We smooth our devision to avoid 0/0
 
-        intersection = np.logical_and(t, p)
-        union = np.logical_or(t, p)
-        iou = np.sum(intersection > 0) / np.sum(union > 0)
-        thresholds = np.arange(0.5, 1, 0.05)
-        s = []
-        for thresh in thresholds:
-            s.append(iou > thresh)
-        metric.append(np.mean(s))
+        thresholded = torch.clamp(20 * (iou - 0.5), 0, 10).ceil() / 10  # This is equal to comparing with thresolds
 
-"""
-def calculate_iou(confusion_matrix):
-    ious = []
-    for index in range(confusion_matrix.shape[0]):
-        true_positives = confusion_matrix[index, index]
-        false_positives = confusion_matrix[:, index].sum() - true_positives
-        false_negatives = confusion_matrix[index, :].sum() - true_positives
-        denom = true_positives + false_positives + false_negatives
-        if denom == 0:
-            iou = 0
-        else:
-            iou = float(true_positives) / denom
-        ious.append(iou)
-    return ious
+        return thresholded.mean()  # Or thresholded.mean() if you are interested in average across the batch
+
 
 
 def calculate_dice(confusion_matrix):
@@ -93,4 +70,4 @@ def calculate_dice(confusion_matrix):
             dice = 2 * float(true_positives) / denom
         dices.append(dice)
     return dices
-"""
+

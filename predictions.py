@@ -6,7 +6,7 @@ from models.prepare_train_val import get_split
 from models.dataset import SaltDataset
 import cv2
 from skimage import io, img_as_float
-from models.models import AlbuNet
+from models.models import AlbuNet, WindNet
 import torch
 from pathlib import Path
 from tqdm import tqdm
@@ -40,7 +40,7 @@ def img_transform(p=1):
     ], p=p)
 
 
-original_height, original_width = 101, 101
+#original_height, original_width = 101, 101
 
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
@@ -62,6 +62,8 @@ def get_model(model_path, model_type='AlbuNet', problem_type='binary'):
         model = UNet16(num_classes=num_classes)
     elif model_type == 'AlbuNet':
         model = AlbuNet(num_classes=num_classes)
+    elif model_type == 'WindNet':
+        model = WindNet(num_classes=num_classes)
     elif model_type == 'UNet11':
         model = UNet11(num_classes=num_classes)
     elif model_type == 'LinkNet34':
@@ -69,10 +71,12 @@ def get_model(model_path, model_type='AlbuNet', problem_type='binary'):
     elif model_type == 'UNet':
         model = UNet(num_classes=num_classes)
 
+    print('Model_path: ', model_path)
     if torch.cuda.is_available():
-        state = torch.load(str(model_path))
+        state = torch.load(model_path)
     else:
-        state = torch.load(str(model_path), map_location = 'cpu')
+        state = torch.load(model_path, map_location = 'cpu')
+
     state = {key.replace('module.', ''): value for key, value in state['model'].items()}
     model.load_state_dict(state)
 
@@ -106,16 +110,16 @@ def predict(model, from_file_names, batch_size: int, to_path, problem_type):
                 t_mask = (torch.sigmoid(outputs[i, 0]).data.cpu().numpy() * factor).astype(float)
 
 
-            #h, w = t_mask.shape
-            #top = (h - original_height) // 2
-            #bottom = top + original_height
-            #left = (w - original_width) // 2
-            #right = left + original_width
-            #full_mask = t_mask[top:bottom, left:right]
+            h, w = t_mask.shape
+            top = 13
+            left = 13
+            bottom = top + 101
+            right = left + 101
+            full_mask = t_mask[top:bottom, left:right]
 
-            aug = CenterCrop(101, 101)
-            augmented = aug(image=t_mask)
-            full_mask = augmented["image"]
+            #aug = CenterCrop(101, 101)
+            #augmented = aug(image=t_mask)
+            #full_mask = augmented["image"]
 
 
             out_folder = Path(paths[i]).parent.parent.name
@@ -129,36 +133,37 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     arg = parser.add_argument
     arg('--model_path', type=str, default='data/models/', help='path to model folder')
-    arg('--model_type', type=str, default='AlbuNet', help='network architecture',
-        choices=['AlbuNet','UNet', 'UNet11', 'UNet16', 'LinkNet34'])
+    arg('--model_type', type=str, default='WindNet', help='network architecture',
+        choices=['AlbuNet','WindNet','UNet', 'UNet11', 'UNet16', 'LinkNet34'])
     arg('--output_path', type=str, help='path to save images', default='data/predictions')
-    arg('--batch-size', type=int, default=16)
+    arg('--batch-size', type=int, default=32)
     arg('--fold', type=int, default=0, choices=[0, 1, 2, 3, 4, -1], help='-1: all folds')
-    arg('--problem_type', type=str, default='binary', choices=['binary', 'parts', 'instruments'])
-    arg('--workers', type=int, default=6)
+    arg('--workers', type=int, default=4)
 
     args = parser.parse_args()
 
     if args.fold == -1:
         for fold in [0, 1, 2, 3, 4]:
             _, file_names = get_split(fold)
-            model = get_model(str((Path(args.model_path) / args.model_type).joinpath('model_{fold}.pt'.format(fold=fold))),
-                              model_type=args.model_type, problem_type=args.problem_type)
+            model_path = str((Path(args.model_path) / args.model_type).joinpath('model_{fold}.pt'.format(fold=fold)))
+            model = get_model(model_path,
+                              model_type=args.model_type, problem_type='binary')
 
             print('num file_names = {}'.format(len(file_names)))
 
             output_path = Path(args.output_path) / args.model_type / 'OOF'
             output_path.mkdir(exist_ok=True, parents=True)
 
-            predict(model, file_names, args.batch_size, output_path, problem_type=args.problem_type)
+            predict(model, file_names, args.batch_size, output_path, problem_type='binary')
     else:
         _, file_names = get_split(args.fold)
-        model = get_model(str((Path(args.model_path) / args.model_type).joinpath('model_{fold}.pt'.format(fold=args.fold))),
-                          model_type=args.model_type, problem_type=args.problem_type)
+        model_path = str((Path(args.model_path) / args.model_type).joinpath('model_{fold}.pt'.format(fold=args.fold)))
+        model = get_model(model_path,
+                          model_type=args.model_type, problem_type='binary')
 
         print('num file_names = {}'.format(len(file_names)))
 
         output_path = Path(args.output_path) / args.model_type / 'OOF'
         output_path.mkdir(exist_ok=True, parents=True)
 
-        predict(model, file_names, args.batch_size, output_path, problem_type=args.problem_type)
+        predict(model, file_names, args.batch_size, output_path, problem_type='binary')

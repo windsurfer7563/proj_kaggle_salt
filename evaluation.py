@@ -131,7 +131,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     arg = parser.add_argument
 
-    arg('--predictions_path', type=str, default='data/predictions/AlbuNet/OOF',
+    arg('--predictions_path', type=str, default='data/predictions/WindNet/OOF',
         help='path where predicted images are located')
     arg('--target_path', type=str, default='data/train/masks/', help='path with gt masks')
     #arg('--problem_type', type=str, default='parts', choices=['binary', 'parts', 'instruments'])
@@ -170,15 +170,15 @@ if __name__ == '__main__':
     print('AP2 = {}'.format(iou_metric_batch(gt_batch, (pred_batch > threshold).astype(np.uint8))))
 
 
-    #thresholds = np.linspace(0.3, 0.7, 31)
-    #ious = np.array(
-    #    [get_iou_vector(gt_batch, (pred_batch>threshold).astype(np.uint8)) for threshold in tqdm(thresholds, ascii=True)])
+    thresholds = np.linspace(0.3, 0.7, 31)
+    ious = np.array(
+        [get_iou_vector(gt_batch, (pred_batch>threshold).astype(np.uint8)) for threshold in tqdm(thresholds, ascii=True)])
 
-    #threshold_best_index = np.argmax(ious[:,0])
-    #iou_best = ious[threshold_best_index]
-    #threshold_best = thresholds[threshold_best_index]
+    threshold_best_index = np.argmax(ious[:,0])
+    iou_best = ious[threshold_best_index]
+    threshold_best = thresholds[threshold_best_index]
 
-    #print("Best IOU: {} at {}".format(iou_best, threshold_best))
+    print("Best IOU: {} at {}".format(iou_best, threshold_best))
 
 
 

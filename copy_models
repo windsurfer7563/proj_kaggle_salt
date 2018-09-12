@@ -1,3 +1,9 @@
 #!/bin/bash
 
-cp -rf runs/debug/*.pt data/models/AlbuNet/
+mkdir -p data/models/WindNet/
+
+cp -rf runs/debug/model_0.pt data/models/WindNet/model_0.pt
+cp -rf runs/debug/model_1.pt data/models/WindNet/model_1.pt
+cp -rf runs/debug/model_2.pt data/models/WindNet/model_2.pt
+cp -rf runs/debug/model_3.pt data/models/WindNet/model_3.pt
+cp -rf runs/debug/model_4.pt data/models/WindNet/model_4.pt

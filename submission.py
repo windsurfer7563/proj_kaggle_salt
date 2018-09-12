@@ -23,14 +23,14 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     arg = parser.add_argument
 
-    arg('--predictions_path', type=str, default='data/predictions/AlbuNet/test',
+    arg('--predictions_path', type=str, default='data/predictions/WindNet/test',
         help='path where predicted images are located')
 
     args = parser.parse_args()
 
     pred_dict = {}
     for file_name in tqdm((Path(args.predictions_path).glob('*'))):
-        y_pred = (img_as_float(imread(str(file_name))) > 0.46).astype(np.uint8)
+        y_pred = (img_as_float(imread(str(file_name))) > 0.4).astype(np.uint8)
 
         if y_pred.sum() < 35:
             y_pred[:,:] = 0

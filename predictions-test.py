@@ -6,7 +6,7 @@ import argparse
 from models.dataset import data_path
 from models.dataset import SaltDataset
 from skimage import io, img_as_float
-from models.models import AlbuNet
+from models.models import AlbuNet, WindNet
 import torch
 from pathlib import Path
 from tqdm import tqdm
@@ -48,6 +48,8 @@ def get_models(models_path, model_type='AlbuNet'):
             model = UNet16(num_classes=num_classes)
         elif model_type == 'AlbuNet':
             model = AlbuNet(num_classes=num_classes)
+        elif model_type == 'WindNet':
+            model = WindNet(num_classes=num_classes)
         elif model_type == 'UNet11':
             model = UNet11(num_classes=num_classes)
         elif model_type == 'LinkNet34':
@@ -101,17 +103,15 @@ def predict(models, from_file_names, batch_size: int, to_path):
 
                 t_mask = outputs_arr[i, 0]
 
+                top = 13
+                left = 13
+                bottom = top + 101
+                right = left + 101
+                full_mask = t_mask[top:bottom, left:right]
 
-                #h, w = t_mask.shape
-                #top = (h - original_height) // 2
-                #bottom = top + original_height
-                #left = (w - original_width) // 2
-                #right = left + original_width
-                #full_mask = t_mask[top:bottom, left:right]
-
-                aug = CenterCrop(101, 101)
-                augmented = aug(image=t_mask)
-                full_mask = augmented["image"]
+                #aug = CenterCrop(101, 101)
+                #augmented = aug(image=t_mask)
+                #full_mask = augmented["image"]
 
                 full_mask = img_as_float(full_mask)
 
@@ -125,8 +125,8 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     arg = parser.add_argument
     arg('--model_path', type=str, default='data/models/', help='path to model folder')
-    arg('--model_type', type=str, default='AlbuNet', help='network architecture',
-        choices=['AlbuNet','UNet', 'UNet11', 'UNet16', 'LinkNet34'])
+    arg('--model_type', type=str, default='WindNet', help='network architecture',
+        choices=['AlbuNet','WindNet','UNet', 'UNet11', 'UNet16', 'LinkNet34'])
     arg('--output_path', type=str, help='path to save images', default='data/predictions/')
     arg('--batch-size', type=int, default=64)
     arg('--problem_type', type=str, default='binary', choices=['binary', 'parts', 'instruments'])

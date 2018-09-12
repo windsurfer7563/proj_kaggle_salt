@@ -4,63 +4,51 @@ from pathlib import Path
 from models.validation import validation_binary
 
 import torch
-from torch.optim import Adam
 from torch.utils.data import DataLoader
 import torch.backends.cudnn as cudnn
 import torch.backends.cudnn
 
-from models.models import AlbuNet
+from models.models import AlbuNet, WindNet
 from models.loss import LossBinary
+import models.lovasz_losses as LL
 from models.dataset import SaltDataset
 from models.utils import train
 
 from models.prepare_train_val import get_split
 
-#from models.transforms import (DualCompose,
-#                        ImageOnly,
-#                        Normalize,
-#                        HorizontalFlip,
-#                        VerticalFlip,
-#                        Rotate,
-#                        RandomBrightness,
-#                        RandomContrast,
-#                        AddMargin
-#                       )
+
 
 from albumentations import (HorizontalFlip, VerticalFlip, Normalize,
     ShiftScaleRotate, Blur, OpticalDistortion,  GridDistortion, HueSaturationValue, IAAAdditiveGaussianNoise, GaussNoise, MotionBlur,
     MedianBlur, IAAPiecewiseAffine, IAASharpen, IAAEmboss, RandomContrast, RandomBrightness,
-    Flip, OneOf, Compose, PadIfNeeded, CLAHE
-)
+    Flip, OneOf, Compose, PadIfNeeded, CLAHE, InvertImg, ElasticTransform, IAAPerspective)
 
 
 
-def make_loader(file_names, args, shuffle=False, transform=None):
+
+def make_loader(file_names, args, config, shuffle=False, transform=None):
     return DataLoader(
         dataset=SaltDataset(file_names, transform=transform),
         shuffle=shuffle,
         num_workers=args.workers,
-        batch_size=args.batch_size,
+        batch_size= config['batch_size'],
         pin_memory=torch.cuda.is_available()
     )
 
 
 def main():
+    global config
     parser = argparse.ArgumentParser()
     arg = parser.add_argument
-    arg('--jaccard-weight', default=1, type=float)
     arg('--train_crop_height', type=int, default=128)
     arg('--train_crop_width', type=int, default=128)
     arg('--device-ids', type=str, default='0', help='For example 0,1 to run on two GPUs')
     arg('--fold', type=int, help='fold', default=0)
     arg('--root', default='runs/debug', help='checkpoint root')
-    arg('--batch-size', type=int, default=1)
     arg('--n-epochs', type=int, default=100)
-    arg('--lr', type=float, default=0.0001)
-    arg('--workers', type=int, default=2)
-    arg('--model', type=str, default='AlbuNet', choices=['UNet', 'UNet11', 'AlbuNet'])
+    arg('--workers', type=int, default=4)
+    arg('--model', type=str, default='WindNet', choices=['UNet', 'UNet11', 'AlbuNet'])
     arg('--freeze', type=int, default=0)
-    #arg('--type', type=str, default='binary', choices=['binary', 'parts', 'instruments'])
 
 
     args = parser.parse_args()
@@ -78,6 +66,11 @@ def main():
         model = UNet16(num_classes=num_classes, pretrained='vgg')
     elif args.model == 'AlbuNet':
         model = AlbuNet(num_classes=num_classes, pretrained=True)
+
+    elif args.model == 'WindNet':
+        model = WindNet(num_classes=num_classes, pretrained=True, dropout_2d=0)
+        config = json.load(open('configs/WindNet.json'))
+
     else:
         model = UNet(num_classes=num_classes, input_channels=3)
 
@@ -95,12 +88,16 @@ def main():
             device_ids = None
         model = torch.nn.DataParallel(model, device_ids=device_ids).cuda()
 
-    loss = LossBinary(jaccard_weight=args.jaccard_weight)
+    criterion = LossBinary(jaccard_weight=config['jaccard_weight'])
+    #loss = LL.binary_xloss
+    #loss = LL.lovasz_hinge
 
-    #if args.type == 'binary':
-    #    loss = LossBinary(jaccard_weight=args.jaccard_weight)
-    #else:
-    #    loss = LossMulti(num_classes=num_classes, jaccard_weight=args.jaccard_weight)
+    #def criterion(logit, truth):
+    #   logit = logit.squeeze(1)
+    #    truth = truth.squeeze(1)
+    #    loss = LL.lovasz_hinge(logit, truth, per_image = True)
+    #    return loss
+
 
     cudnn.benchmark = True
 
@@ -109,41 +106,28 @@ def main():
 
     print('num train = {}, num_val = {}'.format(len(train_file_names), len(val_file_names)))
 
-    """
-    train_transform = DualCompose([
-        AddMargin(128),
-        HorizontalFlip(),
-        VerticalFlip(),
-        ImageOnly(RandomBrightness()),
-        ImageOnly(RandomContrast()),
-        ImageOnly(Normalize())
-    ])
-
-    val_transform = DualCompose([
-        AddMargin(128),
-        ImageOnly(Normalize())
-    ])
-    """
 
     def train_transform(p=1):
         return Compose([
-            PadIfNeeded(min_height=args.train_crop_height, min_width=args.train_crop_width, border_mode = 0,  p=1),
             HorizontalFlip(p=0.5),
+            #OneOf([
+            #    IAAAdditiveGaussianNoise(), #may by
+            #    GaussNoise(),#may by
+            #], p=0.2),
+            #InvertImg(p = 0.2),
+            #OneOf([
+            #    MotionBlur(p=0.2),
+            #    MedianBlur(blur_limit=3, p=0.3),
+            #    Blur(blur_limit=3, p=0.5),
+            #], p=0.4),
+            ShiftScaleRotate(shift_limit=0, scale_limit=0.2, rotate_limit=10, p=0.4),
             OneOf([
-                IAAAdditiveGaussianNoise(),
-                GaussNoise(),
-            ], p=0.2),
-            OneOf([
-                MotionBlur(p=0.2),
-                MedianBlur(blur_limit=3, p=0.1),
-                Blur(blur_limit=3, p=0.1),
-            ], p=0.2),
-            ShiftScaleRotate(shift_limit=0, scale_limit=0.2, rotate_limit=30, p=0.2),
-            OneOf([
-                OpticalDistortion(p=0.3),
-                GridDistortion(p=0.1),
-                IAAPiecewiseAffine(p=0.3),
-            ], p=0.2),
+                #ElasticTransform(p=.2), # bad
+                #IAAPerspective(p=.2), #bad
+                IAAPiecewiseAffine(p=.5),
+                #OpticalDistortion(p=0.2),#bad
+                GridDistortion(p=0.5),
+            ], p=.6),
             OneOf([
                 CLAHE(clip_limit=2),
                 IAASharpen(),
@@ -151,36 +135,37 @@ def main():
                 RandomContrast(),
                 RandomBrightness(),
             ], p=0.3),
-            Normalize(mean=(0, 0, 0), std=(1, 1, 1), p=1)
+
+            #OneOf([
+            #    CLAHE(clip_limit=2),
+            #    IAASharpen(),
+            #    IAAEmboss()], p=0.35),
+            #OneOf([
+            #    RandomContrast(p=0.5),
+            #    RandomBrightness(p=0.5),
+            #], p=0.5),
+
         ], p=p)
 
-    def val_transform(p=1):
-        return Compose([
-            PadIfNeeded(min_height=args.train_crop_height, min_width=args.train_crop_width, border_mode = 0, p=1),
-            Normalize(mean=(0, 0, 0), std=(1, 1, 1), p=1)
-        ], p=p)
+    #def val_transform(p=1):
+    #    return Compose([
+    #       Normalize(mean=(0, 0, 0), std=(1, 1, 1), p=1)
+    #    ], p=p)
 
 
-
-
-
-    train_loader = make_loader(train_file_names, args, shuffle=True, transform=train_transform(p=1))
-    valid_loader = make_loader(val_file_names, args, transform=val_transform(p=1))
+    train_loader = make_loader(train_file_names, args, config, shuffle=True, transform=train_transform(p=0.9))
+    valid_loader = make_loader(val_file_names, args, config, transform=None)
 
     root.joinpath('params.json').write_text(
         json.dumps(vars(args), indent=True, sort_keys=True))
 
-    #if args.type == 'binary':
-    #    valid = validation_binary
-    #else:
-    #    valid = validation_multi
     valid = validation_binary
 
     train(
-        init_optimizer=lambda lr: Adam(filter(lambda p: p.requires_grad, model.parameters()), lr=lr),
         args=args,
         model=model,
-        criterion=loss,
+        config = config,
+        criterion=criterion,
         train_loader=train_loader,
         valid_loader=valid_loader,
         validation=valid,
