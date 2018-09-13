@@ -25,15 +25,6 @@ from torch.optim.lr_scheduler import ExponentialLR, MultiStepLR, ReduceLROnPlate
 
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
-#def variable(x, volatile=False):
-#    if isinstance(x, (list, tuple)):
-#       return [variable(y, volatile=volatile) for y in x]
-#    return cuda(Variable(x, volatile=volatile))
-
-
-#def cuda(x):
-#    return x.cuda(async=True) if torch.cuda.is_available() else x
-
 
 def write_event(log, step: int, **data):
     data['step'] = step
@@ -49,7 +40,7 @@ def get_learning_rate(optimizer):
     return lr
 
 
-def train(args, model,config, criterion, train_loader, valid_loader, validation, n_epochs=None, fold=None, num_classes=None):
+def train(args, model, config, criterion, train_loader, valid_loader, validation, n_epochs=None, fold=None, num_classes=None):
     SEED = 47
     torch.manual_seed(SEED)
     if torch.cuda.is_available():
@@ -63,13 +54,34 @@ def train(args, model,config, criterion, train_loader, valid_loader, validation,
 
     n_epochs = n_epochs or args.n_epochs
 
-    init_optimizer = lambda lr: optimizers[config['optimizer']](filter(lambda p: p.requires_grad, model.parameters()), lr=lr,
-                                                             **optimizer_parameters[config['optimizer']])
-    optimizer = init_optimizer(config['initial_lr'])
+    #init_optimizer = lambda lr: optimizers[config['optimizer']](filter(lambda p: p.requires_grad, model.parameters()), lr=lr,
+    #                                                         **optimizer_parameters[config['optimizer']])
+
+    lr = config['initial_lr'] if args.warmup != 1 else config['warmap_lr']
+    lr_enc = lr if args.warmup != 1 else lr*0.1
+
+    base_params = list(map(id, model.encoder.parameters()))
+    logits_params = filter(lambda p: id(p) not in base_params, model.parameters())
+    params = [{"params": logits_params, "lr": lr},
+              {"params": model.encoder.parameters(), "lr": lr_enc}]
+
+    init_optimizer = lambda params: optimizers[config['optimizer']](params, **optimizer_parameters[config['optimizer']])
+
+
+    optimizer = init_optimizer(params)
 
     #lr_scheduler = ExponentialLR(optimizer, config['lr_gamma'])
     lr_scheduler = MultiStepLR(optimizer, milestones=config['lr_steps'], gamma=0.1)
     #lr_scheduler = ReduceLROnPlateau(optimizer, factor = 0.5, patience=6, verbose = True, mode='max')
+
+    if torch.cuda.is_available():
+        if args.device_ids:
+            device_ids = list(map(int, args.device_ids.split(',')))
+        else:
+            device_ids = None
+        model = torch.nn.DataParallel(model, device_ids=device_ids).cuda()
+
+
 
     root = Path(args.root)
     model_path = root / 'model_{fold}.pt'.format(fold=fold)
@@ -79,7 +91,9 @@ def train(args, model,config, criterion, train_loader, valid_loader, validation,
         epoch = state['epoch']
         step = state['step']
         model.load_state_dict(state['model'])
-        lr_scheduler.load_state_dict(state['lr_scheduler'])
+        #if step > 1500:
+        #    lr_scheduler.load_state_dict(state['lr_scheduler'])
+
         print('Restored model, epoch {}, step {:,}'.format(epoch, step))
     else:
         epoch = 1
@@ -96,14 +110,18 @@ def train(args, model,config, criterion, train_loader, valid_loader, validation,
         'model': model.state_dict(),
         'epoch': ep,
         'step': step,
-    }, str(best_model_path))
+        }, str(best_model_path))
 
 
 
     report_each = 10
     log = root.joinpath('train_{fold}.log'.format(fold=fold)).open('at', encoding='utf8')
     valid_losses = []
-    best_iou = 0.77
+    best_iou = 0.797
+
+
+
+
     for epoch in range(epoch, n_epochs + 1):
         lr_scheduler.step()
         model.train()
@@ -112,7 +130,7 @@ def train(args, model,config, criterion, train_loader, valid_loader, validation,
 
         tq = tqdm.tqdm(total=(len(train_loader) * config['batch_size']), ascii=True)
         #tq.set_description('Epoch {}, lr {}'.format(epoch, lr_scheduler.get_lr()))
-        tq.set_description('Epoch {}, lr {}'.format(epoch, get_learning_rate(optimizer)[0]))
+        tq.set_description('Epoch {}, lr {}'.format(epoch, get_learning_rate(optimizer)))
         losses = []
         tl = train_loader
         try:
@@ -148,6 +166,7 @@ def train(args, model,config, criterion, train_loader, valid_loader, validation,
             if valid_metrics['mean_iou'] > best_iou:
                 save_best_model(epoch + 1)
                 best_iou = valid_metrics['mean_iou']
+                print("Best model saved.")
         except KeyboardInterrupt:
             tq.close()
             print('Ctrl+C, saving snapshot')

@@ -45,9 +45,7 @@ class SaltDataset(Dataset):
         img = imread(img_path)
         #h, w = img.shape[:2]
 
-        img = cv2.copyMakeBorder(img, 13, 14, 13, 14, borderType=cv2.BORDER_REFLECT_101)
-        if mask is not None:
-            mask = cv2.copyMakeBorder(mask, 13, 14, 13, 14, borderType=cv2.BORDER_REFLECT_101)
+
 
         if self.transform is not None:
             if mask is not None:
@@ -59,6 +57,11 @@ class SaltDataset(Dataset):
                 data = {"image": img}
                 augmented = self.transform(**data)
                 img = augmented["image"]
+
+        img = cv2.copyMakeBorder(img, 13, 14, 13, 14, borderType=cv2.BORDER_REFLECT_101)
+        if mask is not None:
+            mask = cv2.copyMakeBorder(mask, 13, 14, 13, 14, borderType=cv2.BORDER_REFLECT_101)
+
 
 
         if self.mode == 'train':

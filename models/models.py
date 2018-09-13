@@ -180,7 +180,7 @@ class AlbuNet(nn.Module):
         self.dec1 = DecoderBlockV2(num_filters * 2 * 2, num_filters * 2 * 2, num_filters, is_deconv)
         self.dec0 = ConvRelu(num_filters, num_filters)
         self.final = nn.Conv2d(num_filters, num_classes, kernel_size=1)
-        #self.final = nn.Conv2d(num_filters, 1, kernel_size=1)
+
 
     def forward(self, x):
         conv1 = self.conv1(x)
@@ -207,12 +207,76 @@ class AlbuNet(nn.Module):
 
         return x_out
 
+
+class DecoderBlockV3(nn.Module):
+    def __init__(self, in_channels, middle_channels, out_channels, is_deconv=True):
+        super(DecoderBlockV3, self).__init__()
+        self.in_channels = in_channels
+
+        self.block = nn.Sequential(
+            Conv3BN(in_channels, middle_channels),
+            Conv3BN(middle_channels, out_channels)
+            )
+        #self.is_deconv = is_deconv
+        self.spatial_gate = SqEx(out_channels)
+        self.channel_gate = cSqEx(out_channels)
+
+    def forward(self, x, e=None):
+        x = F.interpolate(x, scale_factor=2, mode='bilinear', align_corners=True)
+        if e is not None:
+            x = torch.cat([x,e], 1)
+        x = self.block(x)
+        g1 = self.spatial_gate(x)
+        g2 = self.channel_gate(x)
+        x = g1 * x + g2 * x
+        return x
+
+# Spatial Squeese and Channel Excitation
+class SqEx(nn.Module):
+
+    def __init__(self, n_features, reduction=8):
+        super(SqEx, self).__init__()
+
+        if n_features % reduction != 0:
+            raise ValueError('n_features must be divisible by reduction (default = 16)')
+
+        self.linear1 = nn.Linear(n_features, n_features // reduction, bias=True)
+        self.nonlin1 = nn.ReLU(inplace=True)
+        self.linear2 = nn.Linear(n_features // reduction, n_features, bias=True)
+        self.nonlin2 = nn.Sigmoid()
+
+    def forward(self, x):
+
+        y = F.avg_pool2d(x, kernel_size=x.size()[2:4])
+        y = y.permute(0, 2, 3, 1)
+        y = self.nonlin1(self.linear1(y))
+        y = self.nonlin2(self.linear2(y))
+        y = y.permute(0, 3, 1, 2)
+        return y
+
+
+#Chanel Squeese and Spatial Excitation
+class cSqEx(nn.Module):
+
+    def __init__(self, n_features):
+        super(cSqEx, self).__init__()
+
+        self.spatial_se = nn.Sequential(nn.Conv2d(n_features, 1, kernel_size=1,
+                                                  stride=1, padding=0, bias=False),
+                                        nn.Sigmoid())
+
+    def forward(self, x):
+        spa_se = self.spatial_se(x)
+        return spa_se
+
+
+
 class WindNet(nn.Module):
     """
 
         """
 
-    def __init__(self, num_classes=1, num_filters=32, pretrained=True, is_deconv = True, dropout_2d=0):
+    def __init__(self, num_classes=1, num_filters=32, pretrained=True, is_deconv = False, dropout_2d=0):
         """
         :param num_classes:
         :param num_filters:
@@ -232,14 +296,15 @@ class WindNet(nn.Module):
 
         self.pool = nn.MaxPool2d(2, 2)
 
-        self.encoder = torchvision.models.resnet152(pretrained=pretrained)
+        self.encoder = torchvision.models.resnet34(pretrained=pretrained)
 
         self.relu = nn.ReLU(inplace=True)
 
         self.conv1 = nn.Sequential(self.encoder.conv1,
                                    self.encoder.bn1,
                                    self.encoder.relu,
-                                   self.pool)
+                                   #self.pool
+                                   )
 
         self.conv2 = self.encoder.layer1
 
@@ -250,20 +315,30 @@ class WindNet(nn.Module):
         self.conv5 = self.encoder.layer4
 
 
-        bottom_channel_nr = 2048
+        bottom_channel_nr = 512
 
-        self.center = DecoderBlockV2(bottom_channel_nr, num_filters * 8 * 2, num_filters * 8, is_deconv)
-        self.dec5 = DecoderBlockV2(bottom_channel_nr + num_filters * 8, num_filters * 8 * 2, num_filters * 8, is_deconv)
-        self.dec4 = DecoderBlockV2(bottom_channel_nr // 2 + num_filters * 8, num_filters * 8 * 2, num_filters * 8,
-                                   is_deconv)
-        self.dec3 = DecoderBlockV2(bottom_channel_nr // 4 + num_filters * 8, num_filters * 4 * 2, num_filters * 2,
-                                   is_deconv)
-        self.dec2 = DecoderBlockV2(bottom_channel_nr // 8 + num_filters * 2, num_filters * 2 * 2, num_filters * 2 * 2,
-                                   is_deconv)
-        self.dec1 = DecoderBlockV2(num_filters * 2 * 2, num_filters * 2 * 2, num_filters, is_deconv)
-        self.dec0 = ConvRelu(num_filters, num_filters)
-        self.final = nn.Conv2d(num_filters, num_classes, kernel_size=1)
 
+        #self.center = DecoderBlockV2(bottom_channel_nr, 512, 256, is_deconv)
+
+        self.center = nn.Sequential(
+            Conv3BN(512, 512, bn=True),
+            Conv3BN(512, 256, bn=True),
+            self.pool
+        )
+
+
+        self.dec5 = DecoderBlockV3(bottom_channel_nr + 256, 512, 64, is_deconv)
+        self.dec4 = DecoderBlockV3(bottom_channel_nr // 2 + 64, 256, 64, is_deconv)
+        self.dec3 = DecoderBlockV3(bottom_channel_nr // 4 + 64, 128, 64,  is_deconv)
+        self.dec2 = DecoderBlockV3(bottom_channel_nr // 8 + 64, 64, 64, is_deconv)
+        self.dec1 = DecoderBlockV3(64, 32, 64, is_deconv)
+
+
+        self.final = nn.Sequential(
+            nn.Conv2d(320, 64, kernel_size=3, padding=1),
+            nn.ReLU(inplace=True),
+            nn.Conv2d(64, 1, kernel_size=1, padding=0),
+        )
 
 
     def forward(self, x):
@@ -271,18 +346,31 @@ class WindNet(nn.Module):
         conv2 = self.conv2(conv1)
         conv3 = self.conv3(conv2)
         conv4 = self.conv4(conv3)
-        conv5 = self.conv5(conv4)
+        conv5 = self.conv5(conv4)#;              print("conv5: ", conv5.size())
 
-        center = self.center(self.pool(conv5))
 
-        dec5 = self.dec5(torch.cat([center, conv5], 1))
-        dec4 = self.dec4(torch.cat([dec5, conv4], 1))
-        dec3 = self.dec3(torch.cat([dec4, conv3], 1))
-        dec2 = self.dec2(torch.cat([dec3, conv2], 1))
+        center = self.center(conv5)#; print("center: ", center.size())
+
+        dec5 = self.dec5(center, conv5)
+        dec4 = self.dec4(dec5, conv4)
+        dec3 = self.dec3(dec4, conv3)
+        dec2 = self.dec2(dec3, conv2)
         dec1 = self.dec1(dec2)
-        dec0 = self.dec0(dec1)
 
-        return self.final(F.dropout2d(dec0, p=self.dropout_2d))
+
+        # hypercolumn
+        f = torch.cat((
+            dec1,
+            F.interpolate(dec2, scale_factor=2, mode="bilinear", align_corners=False),
+            F.interpolate(dec3, scale_factor=4, mode="bilinear", align_corners=False),
+            F.interpolate(dec4, scale_factor=8, mode="bilinear", align_corners=False),
+            F.interpolate(dec5, scale_factor=16, mode="bilinear", align_corners=False),
+        ), 1)
+        f = F.dropout2d(f, p=0.5)
+
+        x_out = self.final(f)
+
+        return x_out
 
 
 

@@ -4,25 +4,31 @@ from pathlib import Path
 from models.validation import validation_binary
 
 import torch
+from torch import nn
+
 from torch.utils.data import DataLoader
 import torch.backends.cudnn as cudnn
-import torch.backends.cudnn
+
+import torch.nn.functional as F
 
 from models.models import AlbuNet, WindNet
-from models.loss import LossBinary
+from models.loss import dice_loss,jaccard
+
 import models.lovasz_losses as LL
 from models.dataset import SaltDataset
 from models.utils import train
 
 from models.prepare_train_val import get_split
 
+import cv2
+import numpy as np
 
 
 from albumentations import (HorizontalFlip, VerticalFlip, Normalize,
     ShiftScaleRotate, Blur, OpticalDistortion,  GridDistortion, HueSaturationValue, IAAAdditiveGaussianNoise, GaussNoise, MotionBlur,
     MedianBlur, IAAPiecewiseAffine, IAASharpen, IAAEmboss, RandomContrast, RandomBrightness,
-    Flip, OneOf, Compose, PadIfNeeded, CLAHE, InvertImg, ElasticTransform, IAAPerspective)
-
+    Flip, OneOf, Compose, RandomGamma, PadIfNeeded, CLAHE, InvertImg, ElasticTransform, IAAPerspective, RandomSizedCrop,
+    RandomCrop, Resize, DualTransform)
 
 
 
@@ -40,6 +46,7 @@ def main():
     global config
     parser = argparse.ArgumentParser()
     arg = parser.add_argument
+    arg('--loss', type=str, default = 'bce' ,choices = ['bce', 'lovash'])
     arg('--train_crop_height', type=int, default=128)
     arg('--train_crop_width', type=int, default=128)
     arg('--device-ids', type=str, default='0', help='For example 0,1 to run on two GPUs')
@@ -49,6 +56,7 @@ def main():
     arg('--workers', type=int, default=4)
     arg('--model', type=str, default='WindNet', choices=['UNet', 'UNet11', 'AlbuNet'])
     arg('--freeze', type=int, default=0)
+    arg('--warmup', type = int, default =0)
 
 
     args = parser.parse_args()
@@ -81,22 +89,27 @@ def main():
         for param in model.encoder.parameters():
             param.requires_grad = True
 
-    if torch.cuda.is_available():
-        if args.device_ids:
-            device_ids = list(map(int, args.device_ids.split(',')))
-        else:
-            device_ids = None
-        model = torch.nn.DataParallel(model, device_ids=device_ids).cuda()
 
-    criterion = LossBinary(jaccard_weight=config['jaccard_weight'])
     #loss = LL.binary_xloss
     #loss = LL.lovasz_hinge
 
-    #def criterion(logit, truth):
-    #   logit = logit.squeeze(1)
-    #    truth = truth.squeeze(1)
-    #    loss = LL.lovasz_hinge(logit, truth, per_image = True)
-    #    return loss
+    def lovash_loss(logit, truth):
+        logit = logit.squeeze(1)
+        truth = truth.squeeze(1)
+        loss = 0.2 * LL.binary_xloss(logit, truth) + 0.8 * LL.lovasz_hinge(logit, truth, per_image=True)
+        #loss = LL.lovasz_hinge(logit, truth, per_image=True)
+        return loss
+
+    def bcejaccdice_loss(output, target):
+        bce = nn.BCEWithLogitsLoss()(output, target)
+        output = torch.sigmoid(output)
+        dice = dice_loss(output, target)
+        jaccard_l = jaccard(output, target)
+
+        loss = 0.4 * bce + 0.2 * (1 - dice) + 0.2 * (1 - jaccard_l)
+        return loss
+
+    criterion  = bcejaccdice_loss if args.loss == "bce" else lovash_loss
 
 
     cudnn.benchmark = True
@@ -110,6 +123,11 @@ def main():
     def train_transform(p=1):
         return Compose([
             HorizontalFlip(p=0.5),
+            OneOf([
+                    RandomSizedCrop((91, 98), 101, 101, p=0.6),
+                    ShiftScaleRotate(shift_limit=0, scale_limit=0, rotate_limit= 10, p=0.4),
+            ], p=0.6),
+
             #OneOf([
             #    IAAAdditiveGaussianNoise(), #may by
             #    GaussNoise(),#may by
@@ -120,30 +138,22 @@ def main():
             #    MedianBlur(blur_limit=3, p=0.3),
             #    Blur(blur_limit=3, p=0.5),
             #], p=0.4),
-            ShiftScaleRotate(shift_limit=0, scale_limit=0.2, rotate_limit=10, p=0.4),
             OneOf([
                 #ElasticTransform(p=.2), # bad
                 #IAAPerspective(p=.2), #bad
                 IAAPiecewiseAffine(p=.5),
                 #OpticalDistortion(p=0.2),#bad
                 GridDistortion(p=0.5),
-            ], p=.6),
+            ], p=.2),
             OneOf([
                 CLAHE(clip_limit=2),
+                RandomGamma(),
                 IAASharpen(),
                 IAAEmboss(),
                 RandomContrast(),
                 RandomBrightness(),
-            ], p=0.3),
+            ], p=0.5),
 
-            #OneOf([
-            #    CLAHE(clip_limit=2),
-            #    IAASharpen(),
-            #    IAAEmboss()], p=0.35),
-            #OneOf([
-            #    RandomContrast(p=0.5),
-            #    RandomBrightness(p=0.5),
-            #], p=0.5),
 
         ], p=p)
 

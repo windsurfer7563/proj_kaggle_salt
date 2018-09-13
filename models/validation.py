@@ -17,6 +17,7 @@ def validation_binary(model: nn.Module, criterion, valid_loader, num_classes=Non
         outputs = model(inputs.to(device))
         loss = criterion(outputs, targets)
         losses.append(loss.item())
+        #jaccard += [get_jaccard(targets, (torch.sigmoid(outputs) > 0.45).float()).item()]
         jaccard += [get_jaccard(targets, (torch.sigmoid(outputs) > 0.45).float()).item()]
         iou += [get_iou(targets.to(torch.uint8), (torch.sigmoid(outputs) > 0.45).to(torch.uint8))]
 

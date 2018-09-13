@@ -1,14 +1,9 @@
 #!/bin/bash
 
-for i in 0 1 2 3 4
+for i in 0
 do
-   python train.py  --fold $i --workers 4  --n-epochs 5  --freeze 1
-   python train.py  --fold $i --workers 4  --n-epochs 90
+   python train.py  --fold $i --workers 6  --n-epochs 30 --loss bce --warmup 1
+   python train.py  --fold $i --workers 6  --n-epochs 200 --loss lovash
 
 done
 
-#./copy_models
-
-#python predictions.py --fold=-1 --model_type=WindNet
-
-#python evaluation.py
