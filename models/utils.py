@@ -157,7 +157,7 @@ def train(args, model, config, criterion, train_loader, valid_loader, validation
 
         if args.config.endswith('pretrain.json'):
             save_path = 'data/models/{model_type}/pretrained/model_{fold}.pt'.format(model_type=config.model, fold=fold)
-        elif args.config.endswith('filetune.json'):
+        elif args.config.endswith('finetune.json'):
             save_path = 'data/models/{model_type}/pretrained2/model_{fold}.pt'.format(model_type=config.model, fold=fold)
         else:
             save_path = 'data/models/{model_type}/model_{fold}.pt'.format(model_type=config.model, fold=fold)

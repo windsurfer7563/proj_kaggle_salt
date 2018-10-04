@@ -116,7 +116,7 @@ def main():
         return Compose([
             HorizontalFlip(p=0.5),
             OneOf([
-                    RandomSizedCrop((90, 98), 101, 101,  p=0.6),
+                    RandomSizedCrop((92, 98), 101, 101,  p=0.6),
                     ShiftScaleRotate(shift_limit=(0, 0.1), scale_limit=(0, 0.05), rotate_limit=10, p=0.4),
             ], p=0.6),
             #OneOf([
@@ -158,21 +158,20 @@ def main():
         return Compose([
             HorizontalFlip(p=0.5),
             OneOf([
-                    RandomSizedCrop((90, 98), 101, 101,  p=0.6),
+                    RandomSizedCrop((92, 98), 101, 101,  p=0.6),
                     ShiftScaleRotate(shift_limit=(0, 0.1), scale_limit=(0.05, 0.05), rotate_limit=10, p=0.4),
-            ], p=0.6),
+            ], p=0.8),
             OneOf([
                 ElasticTransform(p=0.2, alpha=120, sigma=120 * 0.05, alpha_affine=120 * 0.03),
                 IAAPiecewiseAffine(p=.4),
-                GridDistortion(p=0.4),
+                GridDistortion(p=0.5),
             ], p=.4),
             OneOf([
                 RandomGamma((80, 120)),
-                #IAAEmboss((0.1, 0.4), (0.1, 0.6)),
                 ShiftBrightness((5, 25)),
                 RandomContrast(0.12),
                 RandomBrightness(0.12),
-            ], p=0.9),
+            ], p=1),
         ], p=p)
 
     if config.model == 'SE_ResNext101':
