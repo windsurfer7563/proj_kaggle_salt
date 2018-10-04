@@ -1,6 +1,7 @@
 import numpy as np
 import torch
 from torch import nn
+import gc
 
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
@@ -11,25 +12,47 @@ def validation_binary(model: nn.Module, criterion, valid_loader, num_classes=Non
     jaccard = []
 
     iou = []
+    pred_batch = []
+    gt_batch = []
 
-    for inputs, targets in valid_loader:
-        targets = targets.to(device)
-        outputs = model(inputs.to(device))
-        loss = criterion(outputs, targets)
-        losses.append(loss.item())
-        #jaccard += [get_jaccard(targets, (torch.sigmoid(outputs) > 0.45).float()).item()]
-        jaccard += [get_jaccard(targets, (torch.sigmoid(outputs) > 0.45).float()).item()]
-        iou += [get_iou(targets.to(torch.uint8), (torch.sigmoid(outputs) > 0.45).to(torch.uint8))]
+    model.eval()
+    with torch.no_grad():
+        for inputs, targets in valid_loader:
+
+            targets_cuda = targets.to(device)
+            outputs = model(inputs.to(device))
+            loss = criterion(outputs, targets_cuda)
+            losses.append(loss.item())
+
+            # get original img size for precision metric calculation
+            top = 13
+            left = 13
+            bottom = top + 101
+            right = left + 101
+            targets = targets[:, :, top:bottom, left:right]
+            targets_cuda = targets_cuda[:, :, top:bottom, left:right]
+            outputs = outputs[:, :, top:bottom, left:right]
+            outputs_bin = (torch.sigmoid(outputs) > 0.42)
+
+            jaccard += [get_jaccard(targets_cuda, outputs_bin.float()).item()]
+            #iou += [get_iou(targets_cuda.to(torch.uint8), outputs_bin.to(torch.uint8))]
+
+            outputs_bin = outputs_bin.cpu().numpy().astype(np.uint8)
+            pred_batch.append(outputs_bin.squeeze(1))
+            gt_batch.append(targets.numpy().astype(np.uint8).squeeze(1))
 
 
-    valid_loss = np.mean(losses).astype(float)  # type: float
-
+    valid_loss = np.mean(losses).astype(float)
     valid_jaccard = np.mean(jaccard).astype(float)
+    #valid_iou = np.mean(iou).astype(float)
 
-    valid_iou = np.mean(iou).astype(float)
+    pred_batch = np.concatenate(pred_batch, axis=0)
+    gt_batch = np.concatenate(gt_batch, axis=0)
 
-    print('Valid loss: {:.5f}, jaccard: {:.5f}, mean iou: {:.5f}'.format(valid_loss, valid_jaccard, valid_iou))
-    metrics = {'valid_loss': valid_loss, 'jaccard': valid_jaccard, 'mean_iou': valid_iou}
+    iou2 = get_iou2(gt_batch, pred_batch)
+
+    print('Valid loss: {:.5f}, jaccard: {:.5f}, mean iou2: {:.5f}'.format(valid_loss, valid_jaccard, iou2))
+    metrics = {'valid_loss': valid_loss, 'jaccard': valid_jaccard, 'mean_iou': iou2, 'mean_iou2': iou2}
     return metrics
 
 
@@ -39,6 +62,13 @@ def get_jaccard(y_true, y_pred):
     union = y_true.sum(dim=-2).sum(dim=-1).sum(dim=-1) + y_pred.sum(dim=-2).sum(dim=-1).sum(dim = -1)
 
     return (intersection / (union - intersection + epsilon)).mean()
+"""
+There are 2 metrics calculation example on Kaggle forum (for pytorch).
+Found 2nd one more stable
+"""
+
+
+
 
 def get_iou(labels: torch.Tensor, outputs: torch.Tensor):
         SMOOTH = 1e-6
@@ -55,6 +85,32 @@ def get_iou(labels: torch.Tensor, outputs: torch.Tensor):
         thresholded = torch.clamp(20 * (iou - 0.5), 0, 10).ceil() / 10  # This is equal to comparing with thresolds
 
         return thresholded.mean()  # Or thresholded.mean() if you are interested in average across the batch
+
+def get_iou2(A, B):
+    batch_size = A.shape[0]
+    metric = []
+    for batch in range(batch_size):
+        t, p = A[batch], B[batch]
+        if np.count_nonzero(t) == 0 and np.count_nonzero(p) > 0:
+            metric.append(0)
+            continue
+        if np.count_nonzero(t) >= 1 and np.count_nonzero(p) == 0:
+            metric.append(0)
+            continue
+        if np.count_nonzero(t) == 0 and np.count_nonzero(p) == 0:
+            metric.append(1)
+            continue
+
+        intersection = np.logical_and(t, p)
+        union = np.logical_or(t, p)
+        iou = np.sum(intersection > 0) / np.sum(union > 0)
+        thresholds = np.arange(0.5, 1, 0.05)
+        s = []
+        for thresh in thresholds:
+            s.append(iou > thresh)
+        metric.append(np.mean(s))
+
+    return np.mean(metric)
 
 
 

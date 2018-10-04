@@ -5,3 +5,10 @@ albumentations
 opencv-python
 pandas
 tqdm
+jupyter
+#torchnet
+#tensorflow
+#tensorboardX
+#pathlib2
+#jpeg4py
+

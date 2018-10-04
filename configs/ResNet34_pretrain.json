@@ -1,0 +1,13 @@
+{
+  "model": "ResNet34",
+  "batch_size": 32,
+  "loss": "bce",
+  "initial_lr": 1e-4,
+  "scheduler": "MultiStepLR",
+  "lr_steps": [20,30],
+  "lr_gamma": 0.5,
+  "optimizer": "adam",
+  "warmap_lr": 1e-5,
+  "padding":"replicate",
+  "use_depth": 1
+  }

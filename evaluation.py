@@ -4,6 +4,7 @@ from skimage.io import imread
 from skimage import img_as_float
 import numpy as np
 from tqdm import tqdm
+import cv2
 
 
 def jaccard(y_true, y_pred):
@@ -24,6 +25,10 @@ def precision_at(threshold, iou):
     false_negatives = np.sum(matches, axis=1) == 0  # Extra objects
     tp, fp, fn = np.sum(true_positives), np.sum(false_positives), np.sum(false_negatives)
     return tp, fp, fn
+
+#
+# Below there is 2 metric realization
+#
 
 def get_iou_vector(A, B):
     batch_size = A.shape[0]
@@ -131,7 +136,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     arg = parser.add_argument
 
-    arg('--predictions_path', type=str, default='data/predictions/WindNet/OOF',
+    arg('--predictions_path', type=str, default='data/predictions/SE_ResNext50/OOF',
         help='path where predicted images are located')
     arg('--target_path', type=str, default='data/train/masks/', help='path with gt masks')
     #arg('--problem_type', type=str, default='parts', choices=['binary', 'parts', 'instruments'])
@@ -142,34 +147,51 @@ if __name__ == '__main__':
     pred_batch = []
     gt_batch = []
 
-    for file_name in tqdm(Path(args.predictions_path).glob('*'), ascii=True):
+    threshold = 0.42
+    for file_name in tqdm(Path(args.predictions_path).glob('*.npy'), ascii=True):
 
-        # y_pred = (img_as_float(imread(str(file_name))) > 0.5).astype(np.uint8)
+        y_pred = np.load(str(file_name))
 
-        y_pred = img_as_float(imread(str(file_name)))
-
-        gt_file_name = Path(args.target_path) / file_name.name
+        gt_file_name = Path(args.target_path) / Path(file_name.stem).with_suffix('.png')
         y_true = (imread(gt_file_name) > 0).astype(np.uint8)
         pred_batch.append(y_pred)
         gt_batch.append(y_true)
 
-        result_dice += [dice(y_true, (y_pred>0.5).astype(np.uint8))]
-        result_jaccard += [jaccard(y_true, (y_pred>0.5).astype(np.uint8))]
-
+        result_dice += [dice(y_true, (y_pred > threshold).astype(np.uint8))]
+        result_jaccard += [jaccard(y_true, (y_pred > threshold).astype(np.uint8))]
 
 
     print('Dice = ', np.mean(result_dice), np.std(result_dice))
     print('Jaccard = ', np.mean(result_jaccard), np.std(result_jaccard))
 
-    pred_batch =  np.stack(pred_batch, axis=0)
+    pred_batch = np.stack(pred_batch, axis=0)
     gt_batch = np.stack(gt_batch, axis=0)
 
-    threshold = 0.5
-    m,s = get_iou_vector(gt_batch, (pred_batch>threshold).astype(np.uint8))
+
+    m,s = get_iou_vector(gt_batch, (pred_batch > threshold).astype(np.uint8))
     print('AP = {}, std = {}'.format(m,s))
     print('AP2 = {}'.format(iou_metric_batch(gt_batch, (pred_batch > threshold).astype(np.uint8))))
 
 
+    # the code below is for find threshold to deletion from prediction mask with only few pixels
+
+    #print("Finding best threshold to make mask null")
+    #pred = (pred_batch > 0.5).astype(np.uint8)
+    #thresholds = range(0, 100, 5)
+    #ious = []
+    #for threshold in tqdm(thresholds, ascii=True):
+    #    pred[pred.sum(axis=(1,2)) < threshold] = 0
+    #    ious.append(get_iou_vector(gt_batch, pred))
+    #ious=np.array(ious)
+    #threshold_best_index = np.argmax(ious[:,0])
+    #iou_best = ious[threshold_best_index]
+    #threshold_best = thresholds[threshold_best_index]
+    #print("Best IOU: {} at {}".format(iou_best, threshold_best))
+    #pred = (pred_batch > 0.5).astype(np.uint8)
+    #idx = (pred.sum(axis=(1, 2)) < threshold_best)
+    #pred_batch[idx] = 0
+
+    print("Finding best threshold to binarize")
     thresholds = np.linspace(0.3, 0.7, 31)
     ious = np.array(
         [get_iou_vector(gt_batch, (pred_batch>threshold).astype(np.uint8)) for threshold in tqdm(thresholds, ascii=True)])
@@ -179,7 +201,3 @@ if __name__ == '__main__':
     threshold_best = thresholds[threshold_best_index]
 
     print("Best IOU: {} at {}".format(iou_best, threshold_best))
-
-
-
-    #print('AP2 = {}'.format(iou_metric_batch(gt_batch, (pred_batch>treshold).astype(np.uint8))))

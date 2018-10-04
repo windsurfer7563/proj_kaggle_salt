@@ -1,0 +1,13 @@
+{
+  "model": "IncV3",
+  "batch_size": 32,
+  "loss": "lovash",
+  "iter_size": 1,
+  "scheduler": "StepLR",
+  "initial_lr": 3e-3,
+  "lr_steps": [25],
+  "lr_gamma": 0.5,
+  "optimizer": "sgd",
+  "padding":"replicate",
+  "use_depth": 1
+  }
