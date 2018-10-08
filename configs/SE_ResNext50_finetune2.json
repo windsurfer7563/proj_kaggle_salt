@@ -3,11 +3,11 @@
   "batch_size": 16,
   "loss": "lovash",
   "scheduler": "CyclicScheduler",
-  "initial_lr": 1e-2,
-  "min_lr": 5e-4,
-  "lr_steps": [8000],
+  "initial_lr": 3e-3,
+  "min_lr": 3e-4,
+  "lr_steps": [19350],
   "optimizer": "sgd",
-  "padding":"replicate",
+  "padding":"combine",
   "use_depth": 1
   }
 

@@ -10,6 +10,8 @@ import torch
 from pathlib import Path
 import tqdm
 import numpy as np
+import json
+from collections import namedtuple
 
 from torch.utils.data import DataLoader
 
@@ -40,10 +42,10 @@ def get_model_and_paths(models_path, model_type='SE_ResNext50', fold_no = 0 ):
     return model, paths
 
 
-def predict(model, model_paths, from_file_names, batch_size: int, to_path, tta = 0, fold_no = 0):
+def predict(model, config, model_paths,  from_file_names, batch_size, to_path, tta=1, fold_no=0):
 
     loader = DataLoader(
-        dataset=SaltDataset(from_file_names, transform=None, mode='test'),
+        dataset=SaltDataset(from_file_names, config, transform=None, mode='test'),
         shuffle=False,
         batch_size=batch_size,
         num_workers=args.workers,
@@ -81,22 +83,27 @@ def predict(model, model_paths, from_file_names, batch_size: int, to_path, tta =
                 all_predictions.append(y_pred)
                 tq.update(batch_size)
 
-
         tq.close()
+
         all_predictions = np.vstack(all_predictions)[:,0,:,:]
+
         top = 13
         left = 13
         bottom = top + 101
         right = left + 101
 
         all_predictions = all_predictions[:, top:bottom, left:right]
-
         fold_predictions.append(all_predictions)
 
 
-    fold_predictions = np.stack(fold_predictions, axis = 0)
-    fold_predictions = np.mean(fold_predictions, axis = 0)
-    #print(fold_predictions.shape)
+
+    if len(fold_predictions) > 1:
+        fold_predictions = np.stack(fold_predictions, axis=0)
+        fold_predictions = np.mean(fold_predictions, axis=0)
+    else:
+        fold_predictions = fold_predictions[0]
+
+
 
     np.save(str(to_path / (Path('fold_{}.npy'.format(fold_no)))), fold_predictions)
 
@@ -112,8 +119,15 @@ if __name__ == '__main__':
     arg('--workers', type=int, default=6)
     arg('--tta', type=int, default=1)
     arg('--fold', type=int, default = -1)
+    arg('--config', default = 'SE_ResNext50_finetune.json')
 
     args = parser.parse_args()
+
+    cfg = json.load(open('configs/' + args.config))
+
+    # just convenient way to access config items by config.item in opposite to config['item']
+    Config = namedtuple("Config", cfg.keys())
+    config = Config(**cfg)
 
     test_path = os.path.join(data_path, 'test', 'images')
     ids = next(os.walk(test_path))[2]
@@ -124,14 +138,15 @@ if __name__ == '__main__':
 
     output_path = Path(args.output_path) / args.model_type / 'test'
     output_path.mkdir(exist_ok=True, parents=True)
+    print("Output path: {}".format(str(output_path)))
 
     if args.fold != -1:
         model, model_paths = get_model_and_paths(Path(args.model_path) / args.model_type, model_type=args.model_type,
                                                  fold_no=args.fold)
-        predict(model, model_paths, file_names, args.batch_size, output_path, tta = args.tta, fold_no = args.fold)
+        predict(model, config, model_paths, file_names, args.batch_size, output_path, tta = args.tta, fold_no=args.fold)
     else:
         for f in range(5):
             print("Prediction fold: {}".format(f))
             model, model_paths = get_model_and_paths(Path(args.model_path) / args.model_type,
                                                      model_type=args.model_type, fold_no=f)
-            predict(model, model_paths, file_names, args.batch_size, output_path, tta=args.tta, fold_no=f)
+            predict(model, config, model_paths, file_names, args.batch_size, to_path=output_path, tta=args.tta, fold_no=f)

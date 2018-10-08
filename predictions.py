@@ -12,6 +12,8 @@ import torch
 from pathlib import Path
 from tqdm import tqdm
 import numpy as np
+import json
+from collections import namedtuple
 
 from torch.utils.data import DataLoader
 
@@ -66,9 +68,9 @@ def get_model(model_path, model_type='SE_ResNext50'):
     return model
 
 
-def predict(model, from_file_names, batch_size: int, to_path, problem_type):
+def predict(model, config, from_file_names, batch_size: int, to_path):
     loader = DataLoader(
-        dataset=SaltDataset(from_file_names, transform=None, mode='predict', resize_x2=False),
+        dataset=SaltDataset(from_file_names, config, transform=None, mode='predict'),
         shuffle=False,
         batch_size=batch_size,
         num_workers=args.workers,
@@ -102,8 +104,13 @@ if __name__ == '__main__':
     arg('--batch-size', type=int, default=16)
     arg('--fold', type=int, default=0, choices=[0, 1, 2, 3, 4, -1], help='-1: all folds')
     arg('--workers', type=int, default=4)
+    arg('--config', default='SE_ResNext50_finetune.json')
 
     args = parser.parse_args()
+
+    cfg = json.load(open('configs/' + args.config))
+    Config = namedtuple("Config", cfg.keys())
+    config = Config(**cfg)
 
     if args.fold == -1:
         for fold in [0, 1, 2, 3, 4]:
@@ -118,7 +125,7 @@ if __name__ == '__main__':
             output_path = Path(args.output_path) / args.model_type / 'OOF'
             output_path.mkdir(exist_ok=True, parents=True)
 
-            predict(model, file_names, args.batch_size, output_path)
+            predict(model, config, file_names, args.batch_size, output_path)
     else:
         _, file_names = get_split(args.fold)
         model_path = str((Path(args.model_path) / args.model_type).joinpath('model_{fold}.pt'.format(fold=args.fold)))
@@ -130,4 +137,4 @@ if __name__ == '__main__':
         output_path = Path(args.output_path) / args.model_type / 'OOF'
         output_path.mkdir(exist_ok=True, parents=True)
 
-        predict(model, file_names, args.batch_size, output_path)
+        predict(model, config, file_names, args.batch_size, output_path)

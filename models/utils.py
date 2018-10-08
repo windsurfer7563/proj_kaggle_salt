@@ -101,7 +101,7 @@ def train(args, model, config, criterion, train_loader, valid_loader, validation
     root = Path(args.root)
     model_path = root / 'model_{fold}.pt'.format(fold=fold)
 
-    if args.config.endswith('finetune.json') and args.resume == 0:
+    if args.config.endswith('finetune.json') and args.resume == 0 and args.warmup != 1:
         state = torch.load(
             'data/models/{model_type}/pretrained/model_{fold}.pt'.format(model_type=config.model, fold=fold))
         model.load_state_dict(state['model'])
@@ -152,8 +152,9 @@ def train(args, model, config, criterion, train_loader, valid_loader, validation
         """
         if len(best_models) > 0:
             best_model = max(best_models, key=best_models.get)
+            best_model = root / best_model
         else:
-            best_model = str(model_path)
+            best_model = model_path
 
         if args.config.endswith('pretrain.json'):
             save_path = 'data/models/{model_type}/pretrained/model_{fold}.pt'.format(model_type=config.model, fold=fold)
@@ -164,7 +165,7 @@ def train(args, model, config, criterion, train_loader, valid_loader, validation
 
         save_path = Path(save_path)
         save_path.parent.mkdir(exist_ok=True, parents=True)
-        shutil.copy2(best_model, str(save_path))
+        shutil.copy2(str(best_model), str(save_path))
         print("Best model {} saved to {}".format(best_model,str(save_path)))
 
 
@@ -173,10 +174,12 @@ def train(args, model, config, criterion, train_loader, valid_loader, validation
     valid_losses = []
 
     # threshold to start save best models
-    if args.config.endswith('filetune.json'):
-        BEST_IOU = 0.84
+    if args.config.endswith('finetune2.json'):
+        BEST_IOU = 0.838
+    elif args.config.endswith('finetune.json'):
+        BEST_IOU = 0.83
     else:
-        BEST_IOU = 0.82
+        BEST_IOU = 0.78
 
     best_models = {}
     best_iou = 0

@@ -61,6 +61,7 @@ if __name__ == '__main__':
     sub.index.names = ['id']
     sub.columns = ['rle_mask']
     sub.to_csv('submission_9.csv')
-    #os.system("kg submit submission_5.csv -u windsurfer -p nokia6210 -c tgs-salt-identification-challenge -m auto")
+
+    #os.system('kaggle competitions  submit -c  tgs-salt-identification-challenge -f  submission_9.csv -m sub1')
 
 

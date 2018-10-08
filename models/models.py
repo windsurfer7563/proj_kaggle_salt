@@ -566,3 +566,52 @@ if __name__ == '__main__':
     images = torch.randn(1, 3, 128, 128).to(device)
     f = model.forward(images)
 
+def run_check_net():
+
+    batch_size = 8
+    C,H,W = 1, 128, 128
+
+    input = np.random.uniform(0,1, (batch_size,C,H,W)).astype(np.float32)
+    truth = np.random.choice (2,   (batch_size,C,H,W)).astype(np.float32)
+
+
+    #------------
+    input = torch.from_numpy(input).float().cuda()
+    truth = torch.from_numpy(truth).float().cuda()
+
+
+    #---
+    net = SaltNet().cuda()
+    net.set_mode('train')
+
+    logit = net(input)
+    loss  = net.criterion(logit, truth)
+    dice  = net.metric(logit, truth)
+
+    print('loss : %0.8f'%loss.item())
+    print('dice : %0.8f'%dice.item())
+    print('')
+
+
+    # dummy sgd to see if it can converge ...
+    optimizer = optim.SGD(filter(lambda p: p.requires_grad, net.parameters()),
+                      lr=0.1, momentum=0.9, weight_decay=0.0001)
+
+    #optimizer = optim.Adam(net.parameters(), lr=0.001)
+
+
+    i=0
+    optimizer.zero_grad()
+    while i<=500:
+
+        logit = net(input)
+        loss  = net.criterion(logit, truth)
+        dice  = net.metric(logit, truth)
+
+        loss.backward()
+        optimizer.step()
+        optimizer.zero_grad()
+
+        if i%20==0:
+            print('[%05d] loss, dice  :  %0.5f,%0.5f'%(i, loss.item(),dice.item()))
+        i = i+1

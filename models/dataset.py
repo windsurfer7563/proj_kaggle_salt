@@ -14,24 +14,12 @@ train_image_dir = os.path.join(data_path, 'train')
 test_image_dir = os.path.join(data_path, 'test')
 
 
-
-def add_depth_channels(image_tensor):
-    """
-    realization from here:
-    https://www.kaggle.com/c/tgs-salt-identification-challenge/discussion/61949#385778
-    """
-    _, h, w = image_tensor.size()
-    for row, const in enumerate(np.linspace(0, 1, h)):
-        image_tensor[1, row, :] = const
-    image_tensor[2] = image_tensor[0] * image_tensor[1]
-    return image_tensor
-
 class SaltDataset(Dataset):
     def __init__(self, img_ids, config, transform=None, mode='train', use_depth = False):
         self.image_ids = img_ids
         self.transform = transform
         self.mode = mode
-        paddings = {'replicate': cv2.BORDER_REPLICATE, 'reflect': cv2.BORDER_REFLECT_101}
+        paddings = {'replicate': cv2.BORDER_REPLICATE, 'reflect': cv2.BORDER_REFLECT_101, 'combine': 'combine', 'none': None}
         self.padding = paddings[config.padding]
         self.use_depth = config.use_depth
         self.img_transform = Compose([
@@ -70,14 +58,24 @@ class SaltDataset(Dataset):
                 augmented = self.transform(**data)
                 img = augmented["image"]
 
+        if self.padding is not None:
+            if self.padding == 'combine':
+                img = cv2.copyMakeBorder(img, 13, 14, 0, 0, borderType=cv2.BORDER_REPLICATE)
+                img = cv2.copyMakeBorder(img, 0, 0, 13, 14, borderType=cv2.BORDER_REFLECT_101)
+                if mask is not None:
+                    mask = cv2.copyMakeBorder(mask, 13, 14, 0, 0, borderType=cv2.BORDER_REPLICATE)
+                    mask = cv2.copyMakeBorder(mask, 0, 0, 13, 14, borderType=cv2.BORDER_REFLECT_101)
+            else:
+                img = cv2.copyMakeBorder(img, 13, 14, 13, 14, borderType=self.padding)
+                if mask is not None:
+                    mask = cv2.copyMakeBorder(mask, 13, 14, 13, 14, borderType=self.padding)
+
+
         if self.use_depth:
             img = self.add_depth_channels(img)
-        img = cv2.copyMakeBorder(img, 13, 14, 13, 14, borderType=self.padding)
 
-        if mask is not None:
-            #mask = cv2.resize(mask,(102,102), interpolation = cv2.INTER_NEAREST)
-            #mask = (mask > 0).astype(float)
-            mask = cv2.copyMakeBorder(mask, 13, 14, 13, 14, borderType=self.padding)
+
+
             #if 0 < mask.sum() < 200:
             #    mask = dilation(mask, selem=disk(3))
 

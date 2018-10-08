@@ -8,6 +8,6 @@
   "lr_gamma": 0.5,
   "optimizer": "adam",
   "warmap_lr": 1e-5,
-  "padding":"replicate",
+  "padding":"combine",
   "use_depth": 1
   }

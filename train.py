@@ -91,10 +91,12 @@ def main():
             param.requires_grad = True
 
     def lovash_loss(logit, truth):
+        bce = nn.BCEWithLogitsLoss()(logit, truth)
         logit = logit.squeeze(1)
         truth = truth.squeeze(1)
+        loss = 0.1 * bce + 0.9 * LL.lovasz_hinge(logit, truth, per_image=True)
         #loss = 0.1 * LL.binary_xloss(logit, truth) + 0.9 * LL.lovasz_hinge(logit, truth, per_image=True)
-        loss = LL.lovasz_hinge(logit, truth, per_image=True)
+        #loss = LL.lovasz_hinge(logit, truth, per_image=True)
         return loss
 
     def bcejaccdice_loss(output, target):
@@ -167,18 +169,18 @@ def main():
                 GridDistortion(p=0.5),
             ], p=.4),
             OneOf([
-                RandomGamma((80, 120)),
-                ShiftBrightness((5, 25)),
-                RandomContrast(0.12),
-                RandomBrightness(0.12),
+                RandomGamma((90, 110)),
+                ShiftBrightness((5, 20)),
+                RandomContrast(0.08),
+                RandomBrightness(0.08),
             ], p=1),
         ], p=p)
 
     if config.model == 'SE_ResNext101':
         transforms = train_transform_for_rn101(p=0.8)
     else:
-        transforms = train_transform(p=1)
-
+        #transforms = train_transform(p=1)
+        transforms = train_transform_for_rn101(p=0.9)
 
 
     train_loader = make_loader(train_file_names, args, config, shuffle=True, transform=transforms)
