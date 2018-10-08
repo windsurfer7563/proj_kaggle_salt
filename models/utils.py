@@ -210,17 +210,26 @@ def train(args, model, config, criterion, train_loader, valid_loader, validation
                     lr_scheduler.step()
 
                 inputs, targets = inputs.to(device), targets.to(device)
-                outputs = model(inputs)
-                loss = criterion(outputs, targets)
+                if config.loss != 'lovash2':
+                    outputs = model(inputs)
+                    loss = criterion(outputs, targets)
+                else:
+                    logit_pixel, logit_image = model(inputs)
+                    loss_pixel, loss_image = criterion(logit_pixel, logit_image, targets)
+
+                loss = loss_pixel + loss_image
                 optimizer.zero_grad()
                 batch_size = inputs.size(0)
                 loss.backward()
+
+                #optimizer.zero_grad()
+                #loss_image.backward(retain_graph=True )
                 #torch.nn.utils.clip_grad_norm_(model.parameters(), 1.)
 
                 optimizer.step()
                 step += 1
                 tq.update(batch_size)
-                losses.append(loss.data.item())
+                losses.append(loss_pixel.item())
                 mean_loss = np.mean(losses[-report_each:])
                 tq.set_postfix(loss='{:.5f}'.format(mean_loss))
                 if i and i % report_each == 0:

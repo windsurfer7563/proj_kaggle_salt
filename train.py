@@ -9,7 +9,7 @@ from torch import nn
 from torch.utils.data import DataLoader
 import torch.backends.cudnn as cudnn
 
-from models.models import AlbuNet, ResNet34, SE_ResNext50, SE_ResNext101
+from models.models import AlbuNet, ResNet34, SE_ResNext50, SE_ResNext50_2, SE_ResNext101
 from models.inceptionv3.unet import Incv3
 from models.loss import dice_loss,jaccard
 
@@ -75,6 +75,10 @@ def main():
         model = ResNet34(num_classes=num_classes, pretrained=True, dropout_2d=0)
     elif config.model == 'SE_ResNext50':
         model = SE_ResNext50(num_classes=num_classes)
+
+    elif config.model == 'SE_ResNext50_2':
+        model = SE_ResNext50_2(num_classes=num_classes)
+
     elif config.model == 'SE_ResNext101':
         model = SE_ResNext101(num_classes=num_classes)
     elif config.model == 'IncV3':
@@ -82,7 +86,7 @@ def main():
     else:
         raise NotImplementedError
 
-    # encoder part could be freeze at th einitial stage of training
+    # encoder part could be freeze at the initial stage of training
     if args.freeze != 0:
         for param in model.encoder.parameters():
             param.requires_grad = False
@@ -92,12 +96,26 @@ def main():
 
     def lovash_loss(logit, truth):
         bce = nn.BCEWithLogitsLoss()(logit, truth)
-        logit = logit.squeeze(1)
-        truth = truth.squeeze(1)
+        #logit = logit.squeeze(1)
+        #truth = truth.squeeze(1)
         loss = 0.1 * bce + 0.9 * LL.lovasz_hinge(logit, truth, per_image=True)
         #loss = 0.1 * LL.binary_xloss(logit, truth) + 0.9 * LL.lovasz_hinge(logit, truth, per_image=True)
         #loss = LL.lovasz_hinge(logit, truth, per_image=True)
         return loss
+
+    def lovash_loss2(logit_pixel, logit_image, truth):
+        truth_image = (truth.sum(dim=[2, 3]) > 0).to(torch.float).view(-1)
+        loss_image = nn.BCEWithLogitsLoss()(logit_image, truth_image)
+
+        logit_pixel_non_zero = logit_pixel[(truth_image > 0)]
+        truth_non_zero = truth[(truth_image > 0)]
+        loss_pixel = lovash_loss(logit_pixel_non_zero, truth_non_zero)
+
+        weight_image, weight_pixel = 0.1, 2  # lovasz?
+
+        return weight_pixel * loss_pixel, weight_image * loss_image
+
+
 
     def bcejaccdice_loss(output, target):
         bce = nn.BCEWithLogitsLoss()(output, target)
@@ -108,7 +126,7 @@ def main():
         loss = 0.5 * bce + 0.5 * (1 - dice)
         return loss
 
-    criteries = {"bce": bcejaccdice_loss, "lovash": lovash_loss}
+    criteries = {"bce": bcejaccdice_loss, "lovash": lovash_loss,"lovash2": lovash_loss2}
     criterion = criteries[config.loss]
 
     train_file_names, val_file_names = get_split(args.fold)

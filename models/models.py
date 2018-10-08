@@ -437,11 +437,13 @@ class SE_ResNext50(TTAFunction):
         self.dec2 = DecoderBlockV3(bottom_channel_nr // 8 + 64, 64, 64)
         self.dec1 = DecoderBlockV3(64, 32, 64)
 
-        self.final = nn.Sequential(
+        self.logit_pixel = nn.Sequential(
             nn.Conv2d(320, 64, kernel_size=3, padding=1),
             nn.ReLU(inplace=True),
             nn.Conv2d(64, 1, kernel_size=1, padding=0),
         )
+
+
 
     def forward(self, x):
         #print("x: ", x.size())
@@ -467,9 +469,96 @@ class SE_ResNext50(TTAFunction):
             F.interpolate(dec5, scale_factor=16, mode="bilinear", align_corners=False),
         ), 1)
         f = F.dropout2d(f, p=0.4, training=self.training)
-        x_out = self.final(f)
+        logit_pixel = self.logit_pixel(f)
 
-        return x_out
+        return logit_pixel
+
+class SE_ResNext50_2(TTAFunction):
+
+    def __init__(self, num_classes=1):
+
+        super().__init__()
+        self.is_deconv = False
+        is_deconv = False
+        self.num_classes = num_classes
+
+        self.pool = nn.MaxPool2d(2, 2)
+
+        self.encoder = se_resnext50_32x4d(num_classes=1000, pretrained='imagenet')
+
+
+        self.relu = nn.ReLU(inplace=True)
+        self.conv1 = nn.Sequential(self.encoder.layer0.conv1,
+                                   self.encoder.layer0.bn1,
+                                   self.encoder.layer0.relu1,
+                                   )
+
+        self.conv2 = self.encoder.layer1
+        self.conv3 = self.encoder.layer2
+        self.conv4 = self.encoder.layer3
+        self.conv5 = self.encoder.layer4
+
+        bottom_channel_nr = 2048
+
+        self.center = nn.Sequential(
+            Conv3BN(2048, 512, bn=True),
+            Conv3BN(512, 256, bn=True),
+            self.pool
+        )
+
+        self.dec5 = DecoderBlockV3(bottom_channel_nr + 256, 512, 64)
+        self.dec4 = DecoderBlockV3(bottom_channel_nr // 2 + 64, 256, 64)
+        self.dec3 = DecoderBlockV3(bottom_channel_nr // 4 + 64, 128, 64)
+        self.dec2 = DecoderBlockV3(bottom_channel_nr // 8 + 64, 64, 64)
+        self.dec1 = DecoderBlockV3(64, 32, 64)
+
+        self.logit_pixel = nn.Sequential(
+            nn.Conv2d(320, 64, kernel_size=3, padding=1),
+            nn.ReLU(inplace=True),
+            nn.Conv2d(64, 1, kernel_size=1, padding=0),
+        )
+
+        self.logit_image = nn.Sequential(
+            nn.Linear(2048, 128),
+            nn.ReLU(inplace=True),
+            nn.Linear(128, 1),
+        )
+
+
+    def forward(self, x):
+        batch_size = x.size()[0]
+        #print("x: ", x.size())
+        conv1 = self.conv1(x)#;                print("conv1: ", conv1.size())
+        conv2 = self.conv2(conv1)#;              print("conv2: ", conv2.size())
+        conv3 = self.conv3(conv2)#;              print("conv3: ", conv3.size())
+        conv4 = self.conv4(conv3)#;              print("conv4: ", conv4.size())
+        conv5 = self.conv5(conv4)#;              print("conv5: ", conv5.size())
+
+        center = self.center(conv5)#; print("center: ", center.size())
+        dec5 = self.dec5(center, conv5)#;print("dec5: ", dec5.size())
+        dec4 = self.dec4(dec5, conv4)#;print("dec4: ", dec4.size())
+        dec3 = self.dec3(dec4, conv3)#;print("dec3: ", dec3.size())
+        dec2 = self.dec2(dec3, conv2)#;print("dec2: ", dec2.size())
+        dec1 = self.dec1(dec2)#;print("dec1: ", dec1.size())
+
+        # hypercolumn
+        f = torch.cat((
+            dec1,
+            F.interpolate(dec2, scale_factor=2, mode="bilinear", align_corners=False),
+            F.interpolate(dec3, scale_factor=4, mode="bilinear", align_corners=False),
+            F.interpolate(dec4, scale_factor=8, mode="bilinear", align_corners=False),
+            F.interpolate(dec5, scale_factor=16, mode="bilinear", align_corners=False),
+        ), 1)
+        f = F.dropout2d(f, p=0.4, training=self.training)
+        logit_pixel = self.logit_pixel(f)
+
+        f = F.adaptive_avg_pool2d(conv5, output_size=1).view(batch_size, -1)
+        f = F.dropout(f, p=0.4, training=self.training)
+        logit_image = self.logit_image(f).view(-1)
+
+        #print(logit_image.size())
+        return logit_pixel, logit_image
+
 
 class SE_ResNext101(TTAFunction):
 

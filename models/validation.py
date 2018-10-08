@@ -8,20 +8,23 @@ device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 def validation_binary(model: nn.Module, criterion, valid_loader, num_classes=None):
     model.eval()
     losses = []
-
+    acc = []
     jaccard = []
 
     iou = []
     pred_batch = []
+    pred_batch_images = []
     gt_batch = []
 
     model.eval()
     with torch.no_grad():
         for inputs, targets in valid_loader:
+            batch_size = inputs.size()[0]
 
             targets_cuda = targets.to(device)
-            outputs = model(inputs.to(device))
-            loss = criterion(outputs, targets_cuda)
+            outputs, logit_image = model(inputs)
+            loss_pixel, loss_image = criterion(outputs, logit_image, targets_cuda)
+            loss = loss_pixel + loss_image
             losses.append(loss.item())
 
             # get original img size for precision metric calculation
@@ -32,14 +35,20 @@ def validation_binary(model: nn.Module, criterion, valid_loader, num_classes=Non
             targets = targets[:, :, top:bottom, left:right]
             targets_cuda = targets_cuda[:, :, top:bottom, left:right]
             outputs = outputs[:, :, top:bottom, left:right]
-            outputs_bin = (torch.sigmoid(outputs) > 0.42)
+
+            outputs_bin = (torch.sigmoid(outputs) > 0.42).to(torch.uint8)
+
+            outputs_image_bin = (torch.sigmoid(logit_image) > 0.4).to(torch.uint8)
+
 
             jaccard += [get_jaccard(targets_cuda, outputs_bin.float()).item()]
-            #iou += [get_iou(targets_cuda.to(torch.uint8), outputs_bin.to(torch.uint8))]
 
             outputs_bin = outputs_bin.cpu().numpy().astype(np.uint8)
             pred_batch.append(outputs_bin.squeeze(1))
-            gt_batch.append(targets.numpy().astype(np.uint8).squeeze(1))
+            outputs_image_bin = outputs_image_bin.cpu().numpy().astype(np.uint8)
+            pred_batch_images.append(outputs_image_bin)
+            gt_batch.append(targets.squeeze(1))
+
 
 
     valid_loss = np.mean(losses).astype(float)
@@ -47,12 +56,21 @@ def validation_binary(model: nn.Module, criterion, valid_loader, num_classes=Non
     #valid_iou = np.mean(iou).astype(float)
 
     pred_batch = np.concatenate(pred_batch, axis=0)
+    pred_batch_images = np.concatenate(pred_batch_images, axis=0)
     gt_batch = np.concatenate(gt_batch, axis=0)
+
+    pred_batch = pred_batch * pred_batch_images[:, np.newaxis, np.newaxis]
 
     iou2 = get_iou2(gt_batch, pred_batch)
 
-    print('Valid loss: {:.5f}, jaccard: {:.5f}, mean iou2: {:.5f}'.format(valid_loss, valid_jaccard, iou2))
-    metrics = {'valid_loss': valid_loss, 'jaccard': valid_jaccard, 'mean_iou': iou2, 'mean_iou2': iou2}
+    targets_images = (gt_batch.sum(axis=(1, 2)) > 0)
+    a = (pred_batch_images == targets_images).sum().item()/ pred_batch_images.shape[0]
+    acc.append(a)
+
+    acc = np.mean(acc)
+
+    print('Valid loss: {:.5f}, jaccard: {:.5f}, mean iou2: {:.5f}, acc: {:.5f}'.format(valid_loss, valid_jaccard, iou2, acc))
+    metrics = {'valid_loss': valid_loss, 'jaccard': valid_jaccard, 'mean_iou2': iou2, 'acc': acc}
     return metrics
 
 
