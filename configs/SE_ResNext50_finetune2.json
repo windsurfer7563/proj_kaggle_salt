@@ -1,9 +1,9 @@
 {
   "model": "SE_ResNext50",
-  "batch_size": 16,
+  "batch_size": 24,
   "loss": "lovash",
   "scheduler": "CyclicScheduler",
-  "initial_lr": 3e-3,
+  "initial_lr": 5e-3,
   "min_lr": 3e-4,
   "lr_steps": [19350],
   "optimizer": "sgd",

@@ -1,4 +1,5 @@
 #!/bin/bash
+
 # before run this script run in console:
 #export $KUSERNAME=kaggle_username
 #export $KPASSWORD=pass_to_kaggle_accaunt
@@ -34,6 +35,9 @@ unzip test.zip -d data/test
 yes | pip install -r requirements.txt
 
 pip install -U git+https://github.com/albu/albumentations
+
+
+pip install 'prompt-toolkit==1.0.15'
 
 chmod 777 *.sh
 

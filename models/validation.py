@@ -24,6 +24,7 @@ def validation_binary(model: nn.Module, criterion, valid_loader, num_classes=Non
             targets_cuda = targets.to(device)
             outputs, logit_image = model(inputs)
             loss_pixel, loss_image = criterion(outputs, logit_image, targets_cuda)
+            #print(loss_pixel, loss_image)
             loss = loss_pixel + loss_image
             losses.append(loss.item())
 

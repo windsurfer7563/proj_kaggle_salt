@@ -2,14 +2,12 @@
 
 mkdir -p data/models/SE_ResNext50/pretrained/
 
-for i in 2
+for i in 5
 do
-   #python train.py --config SE_ResNext50_pretrain.json  --fold $i --workers 10  --n-epochs 5 --warmup 1
-   #python train.py --config SE_ResNext50_pretrain.json  --fold $i --workers 10  --n-epochs 10 --resume 1
 
-   #python train.py --config SE_ResNext50_2_finetune.json  --fold $i --workers 10  --n-epochs 5 --warmup 1
+   python train.py --config SE_ResNext50_2_finetune.json  --fold $i --workers 10  --n-epochs 5 --warmup 1
    python train.py --config SE_ResNext50_2_finetune.json  --fold $i --workers 10  --n-epochs 120 --resume 1
-   #python train.py --config SE_ResNext50_finetune2.json  --fold $i --workers 10 --n-epochs 275
+   python train.py --config SE_ResNext50_2_finetune2.json  --fold $i --workers 10 --n-epochs 275
 
 done
 
