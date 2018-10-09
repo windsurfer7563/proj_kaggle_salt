@@ -500,9 +500,11 @@ class SE_ResNext50_2(TTAFunction):
 
 
 
-        self.conv2 = nn.Sequential(nn.MaxPool2d(kernel_size =2, stride = 2),
-                                 self.encoder.layer1
-                                   )
+        #self.conv2 = nn.Sequential(nn.MaxPool2d(kernel_size =2, stride = 2),
+        #                        self.encoder.layer1
+        #                          )
+
+        self.conv2 = self.encoder.layer1
         self.conv3 = self.encoder.layer2
         self.conv4 = self.encoder.layer3
         self.conv5 = self.encoder.layer4
