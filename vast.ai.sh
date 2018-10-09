@@ -22,8 +22,7 @@ mkdir -p data/test
 pip install kaggle-cli
 #kg download -u ${KUSERNAME} -p ${KPASSWORD} -c tgs-salt-identification-challenge -f train.zip
 #kg download -u ${KUSERNAME} -p ${KLASSWORD} -c tgs-salt-identification-challenge -f test.zip
-kg download -u windsurfer -p nokia6210 -c tgs-salt-identification-challenge -f train.zip
-kg download -u windsurfer -p nokia6210 -c tgs-salt-identification-challenge -f test.zip
+
 
 
 pip install kaggle
