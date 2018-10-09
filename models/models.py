@@ -550,7 +550,7 @@ class SE_ResNext50_2(TTAFunction):
 
         dec5 = self.dec5(center, conv5);print("dec5: ", dec5.size())
         dec4 = self.dec4(dec5, conv4);print("dec4: ", dec4.size())
-        dec3 = self.dec3(dec4, conv3)print("dec3: ", dec3.size())
+        dec3 = self.dec3(dec4, conv3);print("dec3: ", dec3.size())
         dec2 = self.dec2(dec3, conv2);print("dec2: ", dec2.size())
         dec1 = self.dec1(dec2, conv1);print("dec1: ", dec1.size())
 
