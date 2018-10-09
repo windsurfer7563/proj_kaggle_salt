@@ -445,5 +445,5 @@ def se_resnext101_32x4d(num_classes=1000, pretrained='imagenet'):
 
 
 if __name__ == '__main__':
-    model = se_resnext101_32x4d(num_classes=1000, pretrained='imagenet')
+    model = se_resnext50_32x4d(num_classes=1000, pretrained='imagenet')
     print(model)

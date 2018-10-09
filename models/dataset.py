@@ -15,7 +15,7 @@ test_image_dir = os.path.join(data_path, 'test')
 
 
 class SaltDataset(Dataset):
-    def __init__(self, img_ids, config, transform=None, mode='train', use_depth = False):
+    def __init__(self, img_ids, config, transform=None, mode='train'):
         self.image_ids = img_ids
         self.transform = transform
         self.mode = mode

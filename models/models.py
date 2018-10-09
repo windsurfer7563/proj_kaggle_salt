@@ -437,7 +437,7 @@ class SE_ResNext50(TTAFunction):
         self.dec2 = DecoderBlockV3(bottom_channel_nr // 8 + 64, 64, 64)
         self.dec1 = DecoderBlockV3(64, 32, 64)
 
-        self.logit_pixel = nn.Sequential(
+        self.final = nn.Sequential(
             nn.Conv2d(320, 64, kernel_size=3, padding=1),
             nn.ReLU(inplace=True),
             nn.Conv2d(64, 1, kernel_size=1, padding=0),
@@ -469,9 +469,9 @@ class SE_ResNext50(TTAFunction):
             F.interpolate(dec5, scale_factor=16, mode="bilinear", align_corners=False),
         ), 1)
         f = F.dropout2d(f, p=0.4, training=self.training)
-        logit_pixel = self.logit_pixel(f)
+        final = self.final(f)
 
-        return logit_pixel
+        return final
 
 class SE_ResNext50_2(TTAFunction):
 
@@ -493,7 +493,16 @@ class SE_ResNext50_2(TTAFunction):
                                    self.encoder.layer0.relu1,
                                    )
 
-        self.conv2 = self.encoder.layer1
+        #(conv1): Conv2d(3, 64, kernel_size=(7, 7), stride=(2, 2), padding=(3, 3), bias=False)
+        #(bn1): BatchNorm2d(64, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+        #(relu1): ReLU(inplace)
+        #(pool): MaxPool2d(kernel_size=3, stride=2, padding=0, dilation=1, ceil_mode=True)
+
+
+
+        self.conv2 = nn.Sequential(nn.MaxPool2d(kernel_size =2, stride = 2),
+                                 self.encoder.layer1
+                                   )
         self.conv3 = self.encoder.layer2
         self.conv4 = self.encoder.layer3
         self.conv5 = self.encoder.layer4
@@ -510,7 +519,7 @@ class SE_ResNext50_2(TTAFunction):
         self.dec4 = DecoderBlockV3(bottom_channel_nr // 2 + 64, 256, 64)
         self.dec3 = DecoderBlockV3(bottom_channel_nr // 4 + 64, 128, 64)
         self.dec2 = DecoderBlockV3(bottom_channel_nr // 8 + 64, 64, 64)
-        self.dec1 = DecoderBlockV3(64, 32, 64)
+        self.dec1 = DecoderBlockV3(64 + 64, 32, 64)
 
         self.logit_pixel = nn.Sequential(
             nn.Conv2d(320, 64, kernel_size=3, padding=1),
@@ -535,11 +544,12 @@ class SE_ResNext50_2(TTAFunction):
         conv5 = self.conv5(conv4)#;              print("conv5: ", conv5.size())
 
         center = self.center(conv5)#; print("center: ", center.size())
+
         dec5 = self.dec5(center, conv5)#;print("dec5: ", dec5.size())
         dec4 = self.dec4(dec5, conv4)#;print("dec4: ", dec4.size())
         dec3 = self.dec3(dec4, conv3)#;print("dec3: ", dec3.size())
         dec2 = self.dec2(dec3, conv2)#;print("dec2: ", dec2.size())
-        dec1 = self.dec1(dec2)#;print("dec1: ", dec1.size())
+        dec1 = self.dec1(dec2, conv1)#;print("dec1: ", dec1.size())
 
         # hypercolumn
         f = torch.cat((

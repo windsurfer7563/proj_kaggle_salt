@@ -145,7 +145,7 @@ if __name__ == '__main__':
                                                  fold_no=args.fold)
         predict(model, config, model_paths, file_names, args.batch_size, output_path, tta = args.tta, fold_no=args.fold)
     else:
-        for f in range(5):
+        for f in range(8):
             print("Prediction fold: {}".format(f))
             model, model_paths = get_model_and_paths(Path(args.model_path) / args.model_type,
                                                      model_type=args.model_type, fold_no=f)

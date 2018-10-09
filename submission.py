@@ -8,6 +8,7 @@ from tqdm import tqdm
 import pandas as pd
 import os
 
+from skimage.morphology import remove_small_holes, remove_small_objects, binary_erosion, binary_dilation, disk, closing, opening
 
 def rle_encode(im):
     '''
@@ -42,7 +43,7 @@ if __name__ == '__main__':
     print("Combining predictions from different models...")
     for model_name in tqdm(Path(args.predictions_path).glob('*.npy'), total = models_count):
         y_pred = np.load(str(model_name))
-        print(y_pred.shape)
+        #print(y_pred.shape)
         predictions += y_pred / models_count
 
     test_path = os.path.join(data_path, 'test', 'images')
@@ -52,7 +53,14 @@ if __name__ == '__main__':
     print("Creating submission file...")
     pred_dict = {}
     for i, file_name in tqdm(enumerate(file_names), total = img_count):
-        y_pred = (predictions[i] > 0.42).astype(np.uint8)
+        y_pred = (predictions[i] > 0.45).astype(np.uint8)
+
+        if y_pred.sum() < 10:
+            y_pred[:, :] = 0
+
+        y_pred = remove_small_holes(y_pred)
+        y_pred = remove_small_objects(y_pred, min_size=16)
+
         pred_dict[file_name] = rle_encode(y_pred)
 
 

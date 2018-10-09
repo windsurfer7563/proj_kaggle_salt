@@ -19,7 +19,6 @@ def validation_binary(model: nn.Module, criterion, valid_loader, num_classes=Non
     model.eval()
     with torch.no_grad():
         for inputs, targets in valid_loader:
-            batch_size = inputs.size()[0]
 
             targets_cuda = targets.to(device)
             outputs, logit_image = model(inputs)
@@ -34,7 +33,7 @@ def validation_binary(model: nn.Module, criterion, valid_loader, num_classes=Non
             bottom = top + 101
             right = left + 101
             targets = targets[:, :, top:bottom, left:right]
-            targets_cuda = targets_cuda[:, :, top:bottom, left:right]
+            #targets_cuda = targets_cuda[:, :, top:bottom, left:right]
             outputs = outputs[:, :, top:bottom, left:right]
 
             outputs_bin = (torch.sigmoid(outputs) > 0.42).to(torch.uint8)
@@ -42,7 +41,7 @@ def validation_binary(model: nn.Module, criterion, valid_loader, num_classes=Non
             outputs_image_bin = (torch.sigmoid(logit_image) > 0.4).to(torch.uint8)
 
 
-            jaccard += [get_jaccard(targets_cuda, outputs_bin.float()).item()]
+            #jaccard += [get_jaccard(targets_cuda, outputs_bin.float()).item()]
 
             outputs_bin = outputs_bin.cpu().numpy().astype(np.uint8)
             pred_batch.append(outputs_bin.squeeze(1))
@@ -53,12 +52,17 @@ def validation_binary(model: nn.Module, criterion, valid_loader, num_classes=Non
 
 
     valid_loss = np.mean(losses).astype(float)
-    valid_jaccard = np.mean(jaccard).astype(float)
+
+    #valid_jaccard = np.mean(jaccard).astype(float)
     #valid_iou = np.mean(iou).astype(float)
 
     pred_batch = np.concatenate(pred_batch, axis=0)
     pred_batch_images = np.concatenate(pred_batch_images, axis=0)
     gt_batch = np.concatenate(gt_batch, axis=0)
+
+    #valid_jaccard = get_jaccard(gt_batch, pred_batch)
+
+    valid_jaccard = 0
 
     pred_batch = pred_batch * pred_batch_images[:, np.newaxis, np.newaxis]
 
@@ -81,13 +85,11 @@ def get_jaccard(y_true, y_pred):
     union = y_true.sum(dim=-2).sum(dim=-1).sum(dim=-1) + y_pred.sum(dim=-2).sum(dim=-1).sum(dim = -1)
 
     return (intersection / (union - intersection + epsilon)).mean()
+
 """
 There are 2 metrics calculation example on Kaggle forum (for pytorch).
 Found 2nd one more stable
 """
-
-
-
 
 def get_iou(labels: torch.Tensor, outputs: torch.Tensor):
         SMOOTH = 1e-6

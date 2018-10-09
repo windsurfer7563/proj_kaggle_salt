@@ -7,7 +7,7 @@
   "min_lr": 4e-4,
   "lr_steps": [12860],
   "optimizer": "sgd",
-  "padding":"combine",
+  "padding":"replicate",
   "use_depth": 1
   }
 

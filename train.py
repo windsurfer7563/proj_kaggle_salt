@@ -167,6 +167,7 @@ def main():
             OneOf([
                 #CLAHE(clip_limit=2),
                 RandomGamma((90,110)),
+                ShiftBrightness((5, 20)),
                 IAAEmboss((0.1, 0.4), (0.1, 0.6)),
                 RandomContrast(0.08),
                 RandomBrightness(0.08),
@@ -208,8 +209,8 @@ def main():
     if config.model == 'SE_ResNext101':
         transforms = train_transform_for_rn101(p=0.8)
     else:
-        #transforms = train_transform(p=1)
-        transforms = train_transform_for_rn101(p=0.9)
+        transforms = train_transform(p=1)
+             
 
 
     train_loader = make_loader(train_file_names, args, config, shuffle=True, transform=transforms)
