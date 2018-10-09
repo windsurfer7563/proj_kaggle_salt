@@ -499,7 +499,6 @@ class SE_ResNext50_2(TTAFunction):
         #(pool): MaxPool2d(kernel_size=3, stride=2, padding=0, dilation=1, ceil_mode=True)
 
 
-
         #self.conv2 = nn.Sequential(nn.MaxPool2d(kernel_size =2, stride = 2),
         #                        self.encoder.layer1
         #                          )
@@ -539,19 +538,19 @@ class SE_ResNext50_2(TTAFunction):
     def forward(self, x):
         batch_size = x.size()[0]
         #print("x: ", x.size())
-        conv1 = self.conv1(x)#;                print("conv1: ", conv1.size())
-        conv2 = self.conv2(conv1)#;              print("conv2: ", conv2.size())
-        conv3 = self.conv3(conv2)#;              print("conv3: ", conv3.size())
-        conv4 = self.conv4(conv3)#;              print("conv4: ", conv4.size())
-        conv5 = self.conv5(conv4)#;              print("conv5: ", conv5.size())
+        conv1 = self.conv1(x);                print("conv1: ", conv1.size())
+        conv2 = self.conv2(conv1);              print("conv2: ", conv2.size())
+        conv3 = self.conv3(conv2);              print("conv3: ", conv3.size())
+        conv4 = self.conv4(conv3);              print("conv4: ", conv4.size())
+        conv5 = self.conv5(conv4);              print("conv5: ", conv5.size())
 
-        center = self.center(conv5)#; print("center: ", center.size())
+        center = self.center(conv5); print("center: ", center.size())
 
-        dec5 = self.dec5(center, conv5)#;print("dec5: ", dec5.size())
-        dec4 = self.dec4(dec5, conv4)#;print("dec4: ", dec4.size())
-        dec3 = self.dec3(dec4, conv3)#;print("dec3: ", dec3.size())
-        dec2 = self.dec2(dec3, conv2)#;print("dec2: ", dec2.size())
-        dec1 = self.dec1(dec2, conv1)#;print("dec1: ", dec1.size())
+        dec5 = self.dec5(center, conv5);print("dec5: ", dec5.size())
+        dec4 = self.dec4(dec5, conv4);print("dec4: ", dec4.size())
+        dec3 = self.dec3(dec4, conv3)print("dec3: ", dec3.size())
+        dec2 = self.dec2(dec3, conv2);print("dec2: ", dec2.size())
+        dec1 = self.dec1(dec2, conv1);print("dec1: ", dec1.size())
 
         # hypercolumn
         f = torch.cat((
