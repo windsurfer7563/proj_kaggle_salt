@@ -488,7 +488,7 @@ class SE_ResNext50_2(TTAFunction):
 
 
         self.relu = nn.ReLU(inplace=True)
-        self.conv1 = nn.Sequential(self.encoder.layer0.conv1,
+        self.conv1 = nn.Sequential(nn.Conv2d(3, 64, kernel_size=(7, 7), stride=(1, 1), padding=(3, 3), bias=False),
                                    self.encoder.layer0.bn1,
                                    self.encoder.layer0.relu1,
                                    )
@@ -503,7 +503,9 @@ class SE_ResNext50_2(TTAFunction):
         #                        self.encoder.layer1
         #                          )
 
-        self.conv2 = self.encoder.layer1
+        self.conv2 = nn.Sequential(nn.MaxPool2d(kernel_size =2, stride = 2),
+                                 self.encoder.layer1
+                                   )
         self.conv3 = self.encoder.layer2
         self.conv4 = self.encoder.layer3
         self.conv5 = self.encoder.layer4
@@ -538,13 +540,13 @@ class SE_ResNext50_2(TTAFunction):
     def forward(self, x):
         batch_size = x.size()[0]
         #print("x: ", x.size())
-        conv1 = self.conv1(x);                print("conv1: ", conv1.size())
-        conv2 = self.conv2(conv1);              print("conv2: ", conv2.size())
-        conv3 = self.conv3(conv2);              print("conv3: ", conv3.size())
-        conv4 = self.conv4(conv3);              print("conv4: ", conv4.size())
-        conv5 = self.conv5(conv4);              print("conv5: ", conv5.size())
+        conv1 = self.conv1(x)#;                print("conv1: ", conv1.size())
+        conv2 = self.conv2(conv1)#;              print("conv2: ", conv2.size())
+        conv3 = self.conv3(conv2)#;              print("conv3: ", conv3.size())
+        conv4 = self.conv4(conv3)#;              print("conv4: ", conv4.size())
+        conv5 = self.conv5(conv4)#;              print("conv5: ", conv5.size())
 
-        center = self.center(conv5); print("center: ", center.size())
+        center = self.center(conv5)#; print("center: ", center.size())
 
         dec5 = self.dec5(center, conv5);print("dec5: ", dec5.size())
         dec4 = self.dec4(dec5, conv4);print("dec4: ", dec4.size())
@@ -661,7 +663,7 @@ class Conv3BN(nn.Module):
 
 
 if __name__ == '__main__':
-    model = SE_ResNext50(num_classes=1)
+    model = SE_ResNext50_2(num_classes=1)
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     images = torch.randn(1, 3, 128, 128).to(device)
     f = model.forward(images)
