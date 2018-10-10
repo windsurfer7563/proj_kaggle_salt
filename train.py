@@ -104,7 +104,7 @@ def main():
         #loss = LL.lovasz_hinge(logit, truth, per_image=True)
         return loss
 
-    def lovash_loss2(logit_pixel, logit_image, truth):
+    def lovash_loss2(logit, logit_pixel, logit_image, truth):
 
         #top = 13
         #left = 13
@@ -112,6 +112,7 @@ def main():
         #right = left + 101
         #logit_pixel = logit_pixel[:, :, top:bottom, left:right]
         #truth = truth[:, :, top:bottom, left:right]
+
 
 
         truth_image = (truth.sum(dim=[2, 3]) > 0).to(torch.float).view(-1)
@@ -122,9 +123,11 @@ def main():
 
         loss_pixel = lovash_loss(logit_pixel_non_zero, truth_non_zero)
 
-        weight_image, weight_pixel = 0.1, 2  # lovasz?
+        loss = lovash_loss(logit, truth)
 
-        return weight_pixel * loss_pixel, weight_image * loss_image
+        weight, weight_pixel, weight_image,  = 1, 0.5, 0.05
+
+        return weight * loss, weight_pixel * loss_pixel, weight_image * loss_image
 
 
 

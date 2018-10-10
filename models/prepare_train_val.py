@@ -33,7 +33,7 @@ def get_split(fold):
 
     X = range(0,len(ids))
 
-    skf = StratifiedKFold(n_splits=8, shuffle=False, random_state=47)
+    skf = StratifiedKFold(n_splits=5, shuffle=False, random_state=47)
     train_index, test_index  = list(skf.split(X, salt_class))[fold]
 
     # random folds without salt coverage startification

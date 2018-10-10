@@ -212,12 +212,12 @@ def train(args, model, config, criterion, train_loader, valid_loader, validation
                 inputs, targets = inputs.to(device), targets.to(device)
                 if config.loss != 'lovash2':
                     outputs = model(inputs)
-                    loss = criterion(outputs, targets)
+                    loss_main = criterion(outputs, targets)
                 else:
-                    logit_pixel, logit_image = model(inputs)
-                    loss_pixel, loss_image = criterion(logit_pixel, logit_image, targets)
+                    logit, logit_pixel, logit_image = model(inputs)
+                    loss_main, loss_pixel, loss_image = criterion(logit, logit_pixel, logit_image, targets)
 
-                loss = loss_pixel + loss_image
+                loss = loss_main + loss_pixel + loss_image
                 optimizer.zero_grad()
                 batch_size = inputs.size(0)
                 loss.backward()
@@ -229,7 +229,7 @@ def train(args, model, config, criterion, train_loader, valid_loader, validation
                 optimizer.step()
                 step += 1
                 tq.update(batch_size)
-                losses.append(loss_pixel.item())
+                losses.append(loss.item())
                 mean_loss = np.mean(losses[-report_each:])
                 tq.set_postfix(loss='{:.5f}'.format(mean_loss))
                 if i and i % report_each == 0:

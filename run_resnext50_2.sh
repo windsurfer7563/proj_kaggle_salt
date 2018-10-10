@@ -2,7 +2,7 @@
 
 mkdir -p data/models/SE_ResNext50/pretrained/
 
-for i in 2
+for i in 0
 do
 
    #python train.py --config SE_ResNext50_2_finetune.json  --fold $i --workers 10  --n-epochs 5 --warmup 1

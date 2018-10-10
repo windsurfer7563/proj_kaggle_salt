@@ -8,6 +8,7 @@ device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 def validation_binary(model: nn.Module, criterion, valid_loader, num_classes=None):
     model.eval()
     losses = []
+    losses_pixel = []
     acc = []
     jaccard = []
 
@@ -21,11 +22,12 @@ def validation_binary(model: nn.Module, criterion, valid_loader, num_classes=Non
         for inputs, targets in valid_loader:
 
             targets_cuda = targets.to(device)
-            outputs, logit_image = model(inputs)
-            loss_pixel, loss_image = criterion(outputs, logit_image, targets_cuda)
+            outputs, logit_pixel, logit_image = model(inputs)
+            loss_main, loss_pixel, loss_image = criterion(outputs, logit_pixel, logit_image, targets_cuda)
             #print(loss_pixel, loss_image)
-            loss = loss_pixel + loss_image
+            loss = loss_main + loss_pixel + loss_image
             losses.append(loss.item())
+            losses_pixel.append(loss_main.item())
 
             # get original img size for precision metric calculation
             top = 13
@@ -52,6 +54,7 @@ def validation_binary(model: nn.Module, criterion, valid_loader, num_classes=Non
 
 
     valid_loss = np.mean(losses).astype(float)
+    valid_loss_pixel = np.mean(losses_pixel).astype(float)
 
     #valid_jaccard = np.mean(jaccard).astype(float)
     #valid_iou = np.mean(iou).astype(float)
@@ -64,18 +67,18 @@ def validation_binary(model: nn.Module, criterion, valid_loader, num_classes=Non
 
     valid_jaccard = 0
 
-    pred_batch = pred_batch * pred_batch_images[:, np.newaxis, np.newaxis]
+    #pred_batch = pred_batch * pred_batch_images[:, np.newaxis, np.newaxis]
 
     iou2 = get_iou2(gt_batch, pred_batch)
 
-    targets_images = (gt_batch.sum(axis=(1, 2)) > 0)
+    targets_images = (gt_batch.sum(axis=(1, 2)) > 0).astype(np.uint8)
     a = (pred_batch_images == targets_images).sum().item()/ pred_batch_images.shape[0]
     acc.append(a)
 
     acc = np.mean(acc)
 
-    print('Valid loss: {:.5f}, jaccard: {:.5f}, mean iou2: {:.5f}, acc: {:.5f}'.format(valid_loss, valid_jaccard, iou2, acc))
-    metrics = {'valid_loss': valid_loss, 'jaccard': valid_jaccard, 'mean_iou2': iou2, 'acc': acc}
+    print('Valid l: {:.5f}, pixel l: {:.5f}, mean iou2: {:.5f}, acc: {:.5f}'.format(valid_loss, valid_loss_pixel, iou2, acc))
+    metrics = {'valid_loss': valid_loss, 'valid_loss_pixel': valid_loss_pixel, 'mean_iou2': iou2, 'acc': acc}
     return metrics
 
 

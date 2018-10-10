@@ -3,7 +3,7 @@
   "batch_size": 24,
   "loss": "lovash2",
   "scheduler": "CyclicScheduler",
-  "initial_lr": 3e-3,
+  "initial_lr": 5e-3,
   "min_lr": 4e-4,
   "lr_steps": [12860],
   "optimizer": "sgd",

@@ -524,17 +524,26 @@ class SE_ResNext50_2(TTAFunction):
         self.dec2 = DecoderBlockV3(bottom_channel_nr // 8 + 64, 64, 64)
         self.dec1 = DecoderBlockV3(64 + 64, 32, 64)
 
-        self.logit_pixel = nn.Sequential(
+
+        self.fuse_pixel = nn.Sequential(
             nn.Conv2d(320, 64, kernel_size=3, padding=1),
             nn.ReLU(inplace=True),
-            nn.Conv2d(64, 1, kernel_size=1, padding=0),
         )
 
-        self.logit_image = nn.Sequential(
-            nn.Linear(2048, 128),
-            nn.ReLU(inplace=True),
-            nn.Linear(128, 1),
-        )
+        self.logit_pixel = nn.Conv2d(64, 1, kernel_size=1, padding=0)
+
+
+        self.fuse_image = nn.Sequential(
+            nn.Linear(2048, 64),
+            nn.ReLU(inplace=True))
+
+        self.logit_image = nn.Linear(64, 1)
+
+        self.fuse = nn.Sequential(
+            nn.Conv2d(128, 64, kernel_size=3, padding=1),
+            nn.ReLU(inplace=True))
+
+        self.logit = nn.Conv2d(64, 1, kernel_size=1, padding=0)
 
 
     def forward(self, x):
@@ -562,15 +571,22 @@ class SE_ResNext50_2(TTAFunction):
             F.interpolate(dec4, scale_factor=8, mode="bilinear", align_corners=False),
             F.interpolate(dec5, scale_factor=16, mode="bilinear", align_corners=False),
         ), 1)
-        f = F.dropout2d(f, p=0.4, training=self.training)
-        logit_pixel = self.logit_pixel(f)
+        f = F.dropout2d(f, p=0.5, training=self.training)
+        fuse_pixel = self.fuse_pixel(f)
+        logit_pixel = self.logit_pixel(fuse_pixel)
 
-        f = F.adaptive_avg_pool2d(conv5, output_size=1).view(batch_size, -1)
-        f = F.dropout(f, p=0.4, training=self.training)
-        logit_image = self.logit_image(f).view(-1)
+        e = F.adaptive_avg_pool2d(conv5, output_size=1).view(batch_size, -1)
+        e = F.dropout(e, p=0.4, training=self.training)
+        fuse_image = self.fuse_image(e)
+        logit_image = self.logit_image(fuse_image).view(-1)
 
-        #print(logit_image.size())
-        return logit_pixel, logit_image
+        fuse = self.fuse(torch.cat([  # fuse
+            fuse_pixel,
+            F.interpolate(fuse_image.view(batch_size, -1, 1, 1, ), scale_factor=128, mode='nearest')
+        ], 1))
+        logit = self.logit(fuse)
+
+        return logit, logit_pixel, logit_image
 
 
 class SE_ResNext101(TTAFunction):
