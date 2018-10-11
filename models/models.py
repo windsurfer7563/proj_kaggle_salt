@@ -4,7 +4,7 @@ import torch
 from torchvision import models
 import torchvision
 from models.senet import se_resnext50_32x4d, se_resnext101_32x4d
-
+from torchviz import make_dot, make_dot_from_trace
 
 def conv3x3(in_, out):
     return nn.Conv2d(in_, out, 3, padding=1)
@@ -485,27 +485,27 @@ class SE_ResNext50_2(TTAFunction):
         self.pool = nn.MaxPool2d(2, 2)
 
         self.encoder = se_resnext50_32x4d(num_classes=1000, pretrained='imagenet')
-
+        #self.encoder = se_resnext50_32x4d(num_classes=1000, pretrained=None)
 
         self.relu = nn.ReLU(inplace=True)
-        self.conv1 = nn.Sequential(nn.Conv2d(3, 64, kernel_size=(7, 7), stride=(1, 1), padding=(3, 3), bias=False),
+
+
+        #self.conv1 = nn.Sequential(nn.Conv2d(3, 64, kernel_size=(7, 7), stride=(1, 1), padding=(3, 3), bias=False),
+        #                           self.encoder.layer0.bn1,
+        #                           self.encoder.layer0.relu1,
+        #                           )
+
+        self.conv1 = nn.Sequential(self.encoder.layer0.conv1,
                                    self.encoder.layer0.bn1,
                                    self.encoder.layer0.relu1,
                                    )
 
-        #(conv1): Conv2d(3, 64, kernel_size=(7, 7), stride=(2, 2), padding=(3, 3), bias=False)
-        #(bn1): BatchNorm2d(64, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
-        #(relu1): ReLU(inplace)
-        #(pool): MaxPool2d(kernel_size=3, stride=2, padding=0, dilation=1, ceil_mode=True)
+        self.conv2 = self.encoder.layer1
 
 
         #self.conv2 = nn.Sequential(nn.MaxPool2d(kernel_size =2, stride = 2),
-        #                        self.encoder.layer1
-        #                          )
-
-        self.conv2 = nn.Sequential(nn.MaxPool2d(kernel_size =2, stride = 2),
-                                 self.encoder.layer1
-                                   )
+        #                         self.encoder.layer1
+        #                           )
         self.conv3 = self.encoder.layer2
         self.conv4 = self.encoder.layer3
         self.conv5 = self.encoder.layer4
@@ -540,7 +540,7 @@ class SE_ResNext50_2(TTAFunction):
         self.logit_image = nn.Linear(64, 1)
 
         self.fuse = nn.Sequential(
-            nn.Conv2d(128, 64, kernel_size=3, padding=1),
+            nn.Conv2d(128, 64, kernel_size=1, padding=0),
             nn.ReLU(inplace=True))
 
         self.logit = nn.Conv2d(64, 1, kernel_size=1, padding=0)
@@ -683,6 +683,10 @@ if __name__ == '__main__':
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     images = torch.randn(1, 3, 128, 128).to(device)
     f = model.forward(images)
+    make_dot(f, params = dict(model.named_parameters()))
+
+
+
 
 def run_check_net():
 

@@ -5,7 +5,7 @@
   "scheduler": "CyclicScheduler",
   "initial_lr": 5e-3,
   "min_lr": 4e-4,
-  "lr_steps": [7800],
+  "lr_steps": [8650],
   "optimizer": "sgd",
   "padding":"combine",
   "use_depth": 1
