@@ -1,49 +1,16 @@
-## Модели
+# Kaggle-TGS-salt-solution
+This repository is dedicated to my solution for TGS-salt competition: https://www.kaggle.com/c/tgs-salt-identification-challenge. 
+This model achieves 0.886 Private LB score.
 
-  
-  - Resnet34 c добавленными SE гейтами в декодере и hyupercolumn 
-    
-    на ЛБ скор с нее получился 0.845   
-    (5 фолдов + флип тта ). Думаю болльше с нее сложно выжать.  
+## Models
+The final submission was blends from 2 models: 
  
- - SE_Resnext50 - енкодер SE_ResNext50, декодер тотже  
-        ЛБ 0.856 - по одной лучшией модели с 5 фолдов + флип тта)  
-        ЛБ 0.857 - 6 лучших снепшотов в каждом фолде (30 моделей)  
-        
-        Хорошая модель, если не сработает Resnext 101 можно ее еще подкрутить.  
-  
- SE_Resnext101 - можем сейчас им занятся. Пробовал уже на одном фолде запускать - не очень.   
- Требуется настройка.
+ - SE_Resnext50 - Unet with SE_ResNext50 encoder, Squeeze and Excitation blocks, hypercolumn
  
- - IncV3 - показала худший скор   
-    я ее сдесь оставил только для истории (даже незнаю рабочая ли она сейчас)  
+ - SE_Resnext50_2 - the models with the additional classification routine (salt-nonsalt).
     
+       
     
-## пайплайн обучения:
-    1) Претрейн - 30 эпох, BCE + dice лосс
-    
-    2) finetune - 80 эпох, lovash лосс
-    
-    3) finetune2 - cycling lr (с восстановлением, тоесть начинаем с 0.01,  
-        по синусоиде спускаемся к 0.0005, дальше резко снова на 0.01 и т.д.)  
-        каждий цикл ~ 40 эпох (80000 степов(батчей)). LR апдейтится после каждого батча (а не после целой эпохи)  
-      
-      Тренируем 6 циклов и сохраняем 6 лучших моделей. (сохранять нужно вручную с папки runs/debug)  
-      
-      (по мотивам https://openreview.net/pdf?id=BJYwwY9ll 
-
-
-## контроль обучения
-    
-    в папке notebooks есть нутбук Plots. Не так удобно как tensorboard но пока не было времени добавить 
-    логирование в tensorbord. Но мне его пока хватает.
-
-
-
-
-В папке Classification - класификатор: есть соль - нет соли - для постпроцессинга.   
-Пока сырой, хотя немного добавил к скору на ЛБ. Делал его чтобы попробовать новый фреймворк Prometeus 
-(в ODS слаке рекламмировали  в ветке deeplearning)
 
       
  

@@ -100,14 +100,18 @@ ENV/
 # mypy
 .mypy_cache/
 
-# my specific
-input/
-data/
-CCM/
-runs/
 
+
+.idea
+.code
+
+# data/
+tmp/
+logs/
+
+*.ipynb
 *.csv
-*.wpr
-.idea/
-prometheus/
-classification/logs/
+*.tsv
+*.txt
+
+.DS_Store

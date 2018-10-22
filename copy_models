@@ -1,9 +1,0 @@
-#!/bin/bash
-
-mkdir -p data/models/ResNet34/
-
-cp -rf runs/debug/model_0.pt data/models/ResNet34/model_0.pt
-cp -rf runs/debug/model_1.pt data/models/ResNet34/model_1.pt
-cp -rf runs/debug/model_2.pt data/models/ResNet34/model_2.pt
-cp -rf runs/debug/model_3.pt data/models/ResNet34/model_3.pt
-cp -rf runs/debug/model_4.pt data/models/ResNet34/model_4.pt
