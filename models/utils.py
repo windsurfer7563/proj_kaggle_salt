@@ -175,9 +175,9 @@ def train(args, model, config, criterion, train_loader, valid_loader, validation
 
     # threshold to start save best models
     if args.config.endswith('finetune2.json'):
-        BEST_IOU = 0.838
+        BEST_IOU = 0.842
     elif args.config.endswith('finetune.json'):
-        BEST_IOU = 0.83
+        BEST_IOU = 0.835
     else:
         BEST_IOU = 0.78
 
@@ -207,6 +207,8 @@ def train(args, model, config, criterion, train_loader, valid_loader, validation
                 if config.scheduler == 'CyclicScheduler':
                     if step % config.lr_steps[0] == 0:
                         lr_scheduler.last_epoch = 0
+                        #if step > 5000:
+                        #    lr_scheduler.T_max = lr_scheduler.T_max*1.2
                     lr_scheduler.step()
 
                 inputs, targets = inputs.to(device), targets.to(device)
@@ -214,10 +216,13 @@ def train(args, model, config, criterion, train_loader, valid_loader, validation
                     outputs = model(inputs)
                     loss_main = criterion(outputs, targets)
                 else:
-                    logit, logit_pixel, logit_image = model(inputs)
-                    loss_main, loss_pixel, loss_image = criterion(logit, logit_pixel, logit_image, targets)
+                    #logit, logit_pixel, logit_image = model(inputs)
+                    #loss_main, loss_pixel, loss_image = criterion(logit, logit_pixel, logit_image, targets)
+                    logit_pixel, logit_image = model(inputs)
+                    loss_pixel, loss_image = criterion(logit_pixel, logit_image, targets)
 
-                loss = loss_main + loss_pixel + loss_image
+                #loss = loss_main + loss_pixel + loss_image
+                loss = loss_pixel + loss_image
                 optimizer.zero_grad()
                 batch_size = inputs.size(0)
                 loss.backward()
@@ -251,8 +256,8 @@ def train(args, model, config, criterion, train_loader, valid_loader, validation
                 best_iou = valid_metrics['mean_iou2']
                 print("Best model saved.")
 
-            # will find best model every 10 epoch
-            if epoch % 10 == 0:
+            # will find best model every 30 epoch
+            if epoch % 30 == 0:
                 best_iou = 0
         except KeyboardInterrupt:
             tq.close()

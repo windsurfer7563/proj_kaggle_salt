@@ -69,7 +69,10 @@ class SaltDataset(Dataset):
                 img = cv2.copyMakeBorder(img, 13, 14, 13, 14, borderType=self.padding)
                 if mask is not None:
                     mask = cv2.copyMakeBorder(mask, 13, 14, 13, 14, borderType=self.padding)
-
+        else:
+            img = cv2.resize(img,(128,128), interpolation = cv2.INTER_LINEAR)
+            if mask is not None:
+                mask = cv2.resize(mask,(128,128), interpolation = cv2.INTER_NEAREST)
 
         if self.use_depth:
             img = self.add_depth_channels(img)

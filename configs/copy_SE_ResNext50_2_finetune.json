@@ -1,0 +1,13 @@
+{
+  "model": "SE_ResNext50_2",
+  "batch_size": 24,
+  "loss": "lovash2",
+  "scheduler": "MultiStepLR",
+  "initial_lr": 2e-3,
+  "lr_steps": [50],
+  "lr_gamma": 0.5,
+  "optimizer": "sgd",
+  "padding": "none",
+  "use_depth": 1,
+  "warmap_lr": 1e-3
+  }

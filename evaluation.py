@@ -4,6 +4,7 @@ from skimage.io import imread
 from skimage import img_as_float
 import numpy as np
 from tqdm import tqdm
+import pandas as pd
 import cv2
 
 
@@ -132,11 +133,20 @@ def iou_metric_batch(y_true_in, y_pred_in):
     return np.mean(metric)
 
 
+def get_acc(gt, pred, img_threshold):
+    pred = (pred[:, 0, 0] > img_threshold).astype(np.uint8)
+    #print(pred.shape)
+    targets_images = (gt.sum(axis=(1, 2)) > 0).astype(np.uint8)
+    #print(targets_images.shape)
+    acc = (pred == targets_images).astype(np.uint8).sum().item() / pred.shape[0]
+    return acc
+
+
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     arg = parser.add_argument
 
-    arg('--predictions_path', type=str, default='data/predictions/SE_ResNext50/OOF',
+    arg('--predictions_path', type=str, default='data/predictions/SE_ResNext50_5folds/OOF',
         help='path where predicted images are located')
     arg('--target_path', type=str, default='data/train/masks/', help='path with gt masks')
     #arg('--problem_type', type=str, default='parts', choices=['binary', 'parts', 'instruments'])
@@ -145,19 +155,29 @@ if __name__ == '__main__':
     result_dice = []
     result_jaccard = []
     pred_batch = []
+    images_batch = []
     gt_batch = []
 
     threshold = 0.42
+    #img_threshold = 0.42
+    #images = pd.read_csv(str(Path(args.predictions_path) / 'images.csv'), index_col =0, header = None)
+    #images.columns = ['p']
     for file_name in tqdm(Path(args.predictions_path).glob('*.npy'), ascii=True):
 
         y_pred = np.load(str(file_name))
+        #print(y_pred)
+        img_id = Path(file_name.stem)
 
         gt_file_name = Path(args.target_path) / Path(file_name.stem).with_suffix('.png')
         y_true = (imread(gt_file_name) > 0).astype(np.uint8)
         pred_batch.append(y_pred)
         gt_batch.append(y_true)
+        #p = images.loc[str(img_id)+'.png', 'p']
 
-        result_dice += [dice(y_true, (y_pred > threshold).astype(np.uint8))]
+        #img = np.ones((101,101)) * p
+        #images_batch.append(img)
+
+        result_dice += [dice(y_true, (y_pred > threshold))]
         result_jaccard += [jaccard(y_true, (y_pred > threshold).astype(np.uint8))]
 
 
@@ -166,11 +186,11 @@ if __name__ == '__main__':
 
     pred_batch = np.stack(pred_batch, axis=0)
     gt_batch = np.stack(gt_batch, axis=0)
-
+    #images_batch = np.stack(images_batch, axis = 0)
 
     m,s = get_iou_vector(gt_batch, (pred_batch > threshold).astype(np.uint8))
     print('AP = {}, std = {}'.format(m,s))
-    print('AP2 = {}'.format(iou_metric_batch(gt_batch, (pred_batch > threshold).astype(np.uint8))))
+    print('AP2 = {}'.format(iou_metric_batch(gt_batch, (pred_batch >threshold).astype(np.uint8))))
 
 
     # the code below is for find threshold to deletion from prediction mask with only few pixels
@@ -191,13 +211,53 @@ if __name__ == '__main__':
     #idx = (pred.sum(axis=(1, 2)) < threshold_best)
     #pred_batch[idx] = 0
 
-    print("Finding best threshold to binarize")
+    #print("Finding best threshold to binarize images (empty/nonempty)...")
+    #thresholds = np.linspace(0.3, 0.7, 31)
+    #accs = np.array([get_acc(gt_batch, images_batch, t) for t in thresholds])
+    #threshold_best_index = np.argmax(accs)
+    #acc_best = accs[threshold_best_index]
+    #img_threshold_best = thresholds[threshold_best_index]
+    #print("Best acc: {} at {}".format(acc_best, img_threshold_best))
+
+
+    print("Finding best threshold to binarize...")
     thresholds = np.linspace(0.3, 0.7, 31)
     ious = np.array(
-        [get_iou_vector(gt_batch, (pred_batch>threshold).astype(np.uint8)) for threshold in tqdm(thresholds, ascii=True)])
+        [get_iou_vector(gt_batch, (pred_batch > threshold).astype(np.uint8))
+         for threshold in tqdm(thresholds, ascii=True)])
 
     threshold_best_index = np.argmax(ious[:,0])
     iou_best = ious[threshold_best_index]
     threshold_best = thresholds[threshold_best_index]
-
     print("Best IOU: {} at {}".format(iou_best, threshold_best))
+
+
+    #print("Finding best threshold to binarize 2...")
+
+    #thresholds = np.linspace(0.3, 0.7, 31)
+    #ious = np.array(
+    #    [get_iou_vector(gt_batch, ((pred_batch > threshold) * (images_batch > img_threshold)).astype(np.uint8)) for
+    #          threshold in tqdm(thresholds, ascii=True)])
+
+
+    #threshold_best_index = np.argmax(ious[:, 0])
+    #iou_best = ious[threshold_best_index]
+    #threshold_best = thresholds[threshold_best_index]
+    #print("Best IOU: {} at {}".format(iou_best, threshold_best))
+
+    #img_tr =  np.linspace(0.38, 0.51, 13)
+    #pix_tr = np.linspace(0.38, 0.5, 20)
+
+    #best_iou = 0
+    #best_i_t = 0
+    #best_p_t = 0
+    #for i_t in img_tr:
+    #    for p_t in pix_tr:
+    #        iou, _ = get_iou_vector(gt_batch, ((pred_batch > p_t) * (images_batch > i_t)).astype(np.uint8))
+    #        if iou > best_iou:
+    #            best_iou = iou
+    #            best_i_t = i_t
+    #            best_p_t = p_t
+
+    #print("Best IOU: {} at p_t: {} i_t: {} ".format(best_iou, best_p_t, best_i_t))
+

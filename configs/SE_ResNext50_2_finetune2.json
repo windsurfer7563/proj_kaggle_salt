@@ -1,11 +1,11 @@
 {
   "model": "SE_ResNext50_2",
-  "batch_size": 24,
+  "batch_size": 20,
   "loss": "lovash2",
   "scheduler": "CyclicScheduler",
-  "initial_lr": 5e-3,
-  "min_lr": 4e-4,
-  "lr_steps": [8650],
+  "initial_lr": 1e-3,
+  "min_lr": 1e-4,
+  "lr_steps": [18920],
   "optimizer": "sgd",
   "padding":"combine",
   "use_depth": 1

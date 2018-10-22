@@ -104,8 +104,8 @@ def main():
         #loss = LL.lovasz_hinge(logit, truth, per_image=True)
         return loss
 
-    def lovash_loss2(logit, logit_pixel, logit_image, truth):
-
+    #def lovash_loss2(logit, logit_pixel, logit_image, truth):
+    def lovash_loss2(logit_pixel, logit_image, truth):
         #top = 13
         #left = 13
         #bottom = top + 101
@@ -114,20 +114,21 @@ def main():
         #truth = truth[:, :, top:bottom, left:right]
 
 
-
         truth_image = (truth.sum(dim=[2, 3]) > 0).to(torch.float).view(-1)
         loss_image = nn.BCEWithLogitsLoss()(logit_image, truth_image)
 
         logit_pixel_non_zero = logit_pixel[(truth_image > 0)]
         truth_non_zero = truth[(truth_image > 0)]
 
-        loss_pixel = lovash_loss(logit_pixel_non_zero, truth_non_zero)
+        if list(logit_pixel_non_zero.size())[0] != 0:
+            loss_pixel = lovash_loss(logit_pixel_non_zero, truth_non_zero)
+        else:
+            loss_pixel = 0
 
-        loss = lovash_loss(logit, truth)
+        #weight, weight_pixel, weight_image,  = 1, 0.5, 0.05
+        weight_pixel, weight_image = 2, 0.08
 
-        weight, weight_pixel, weight_image,  = 1, 0.5, 0.05
-
-        return weight * loss, weight_pixel * loss_pixel, weight_image * loss_image
+        return weight_pixel * loss_pixel, weight_image * loss_image
 
 
 
@@ -197,7 +198,7 @@ def main():
                     ShiftScaleRotate(shift_limit=(0, 0.1), scale_limit=(0.05, 0.05), rotate_limit=8, p=0.4),
             ], p=0.8),
             OneOf([
-                ElasticTransform(p=0.3, alpha=120, sigma=120 * 0.05, alpha_affine=120 * 0.03),
+                ElasticTransform(p=0.4, alpha=120, sigma=120 * 0.05, alpha_affine=120 * 0.03),
                 IAAPiecewiseAffine(p=.4),
                 GridDistortion(p=0.5),
             ], p=.4),
@@ -205,12 +206,12 @@ def main():
                 RandomGamma((90, 110)),
                 ShiftBrightness((5, 20)),
                 RandomContrast(0.08),
-                RandomBrightness(0.08),
+                RandomBrightness(0.1),
             ], p=1),
         ], p=p)
 
     if config.model == 'SE_ResNext101':
-        transforms = train_transform_for_rn101(p=0.8)
+        transforms = train_transform_for_rn101(p=1)
     else:
         transforms = train_transform(p=1)
              

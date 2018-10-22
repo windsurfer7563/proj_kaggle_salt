@@ -26,7 +26,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     arg = parser.add_argument
 
-    arg('--predictions_path', type=str, default='data/predictions/SE_ResNext50/test',
+    arg('--predictions_path', type=str, default='data/models/predictions/SE_ResNext50_8folds/test',
         help='path where predicted images are located')
 
     args = parser.parse_args()
@@ -46,6 +46,8 @@ if __name__ == '__main__':
         #print(y_pred.shape)
         predictions += y_pred / models_count
 
+    np.save('SE_ResNext_50_8folds.npy', predictions)
+
     test_path = os.path.join(data_path, 'test', 'images')
     ids = next(os.walk(test_path))[2]
     file_names = [i[:-4] for i in ids]
@@ -53,7 +55,7 @@ if __name__ == '__main__':
     print("Creating submission file...")
     pred_dict = {}
     for i, file_name in tqdm(enumerate(file_names), total = img_count):
-        y_pred = (predictions[i] > 0.45).astype(np.uint8)
+        y_pred = (predictions[i] > 0.42).astype(np.uint8)
 
         if y_pred.sum() < 10:
             y_pred[:, :] = 0
@@ -68,8 +70,8 @@ if __name__ == '__main__':
     sub = pd.DataFrame.from_dict(pred_dict, orient='index')
     sub.index.names = ['id']
     sub.columns = ['rle_mask']
-    sub.to_csv('submission_9.csv')
+    sub.to_csv('submission_SERN50_5folds.csv')
 
-    #os.system('kaggle competitions  submit -c  tgs-salt-identification-challenge -f  submission_9.csv -m sub1')
+    #os.system('kaggle competitions  submit -c  tgs-salt-identification-challenge -f submission_SERN50_5folds.csv -m sub1')
 
 
